@@ -224,7 +224,7 @@ const ComplaintList = () => {
                                             <p className="text-xs text-slate-400 font-bold mb-1 uppercase tracking-wider flex items-center gap-1">
                                                 Remark
                                             </p>
-                                            <p className="text-base text-slate-600 font-medium mb-3">"{complaint.Remark}"</p>
+                                            <p className="text-base text-slate-600 font-medium mb-3">{complaint.Remark}</p>
 
                                             {(complaint.Status === 'Closed' || complaint.Status === 'Solved') && complaint.ResolvedBy && (
                                                 <div className="flex items-center gap-2 pt-3 border-t border-slate-200 mt-2">
