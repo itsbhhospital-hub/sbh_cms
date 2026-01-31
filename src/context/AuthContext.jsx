@@ -10,25 +10,34 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // Check local storage for persisted session
         const storedUser = localStorage.getItem('sbh_user');
-        const loginTime = localStorage.getItem('sbh_login_time'); // Get login timestamp
+        const loginTime = localStorage.getItem('sbh_login_time');
 
         if (storedUser) {
             const now = Date.now();
-            const oneHour = 60 * 60 * 1000; // 1 Hour in ms
+            const oneHour = 60 * 60 * 1000;
 
-            // Check if session expired
             if (loginTime && (now - parseInt(loginTime) > oneHour)) {
-                // Session Expired
                 localStorage.removeItem('sbh_user');
                 localStorage.removeItem('sbh_login_time');
                 setUser(null);
             } else {
-                // Valid Session
                 setUser(JSON.parse(storedUser));
             }
         }
         setLoading(false);
     }, []);
+
+    // Active Session Monitor & Auto Logout
+    useEffect(() => {
+        if (!user) return;
+        const interval = setInterval(() => {
+            const loginTime = localStorage.getItem('sbh_login_time');
+            if (loginTime && (Date.now() - parseInt(loginTime) > 60 * 60 * 1000)) {
+                logout(); // Logs out if active session exceeds 1 hour
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [user]);
 
     const login = async (username, password) => {
         try {

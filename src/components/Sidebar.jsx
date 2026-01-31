@@ -16,6 +16,30 @@ const Sidebar = () => {
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [timeLeft, setTimeLeft] = useState('');
+
+    // Timer Logic
+    useEffect(() => {
+        const updateTimer = () => {
+            const loginTime = localStorage.getItem('sbh_login_time');
+            if (!loginTime) return;
+
+            const elapsed = Date.now() - parseInt(loginTime);
+            const remaining = (60 * 60 * 1000) - elapsed; // 1 Hour
+
+            if (remaining <= 0) {
+                setTimeLeft('00:00');
+            } else {
+                const m = Math.floor(remaining / 60000);
+                const s = Math.floor((remaining % 60000) / 1000);
+                setTimeLeft(`${m}:${s.toString().padStart(2, '0')}`);
+            }
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Close mobile menu on route change
     useEffect(() => {
@@ -120,6 +144,9 @@ const Sidebar = () => {
                             <div className="overflow-hidden">
                                 <p className="font-bold text-sm truncate text-white drop-shadow-md">{user.Username}</p>
                                 <p className="text-xs text-white/70 truncate capitalize font-medium">{user.Department || user.Role}</p>
+                                <p className="text-[10px] text-emerald-300 font-mono mt-0.5 opacity-80">
+                                    Time Left: {timeLeft}
+                                </p>
                             </div>
                         )}
                         {(!collapsed || mobileOpen) && (
