@@ -14,7 +14,20 @@ function doGet(e) {
     return response('error', 'Invalid action');
 }
 
+// --- DEBUGGING: Run this function to test doGet inside the editor ---
+function testDoGet() {
+    const e = {
+        parameter: {
+            action: 'read',
+            sheet: 'master' // or 'data'
+        }
+    };
+    const result = doGet(e);
+    Logger.log(result.getContent());
+}
+
 function doPost(e) {
+
     try {
         const data = JSON.parse(e.postData.contents);
         const action = data.action;

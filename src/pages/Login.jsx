@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 
@@ -26,103 +26,114 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-indigo-900/85 via-purple-900/85 to-pink-900/85">
-            {/* Ambient Light Background (Reduced opacity to show hospital image) */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-                <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-500 rounded-full blur-3xl opacity-20 mix-blend-overlay animate-blob"></div>
-                <div className="absolute top-20 -right-20 w-[600px] h-[600px] bg-pink-500 rounded-full blur-3xl opacity-20 mix-blend-overlay animate-blob animation-delay-2000"></div>
-                <div className="absolute -bottom-40 left-1/2 w-[600px] h-[600px] bg-yellow-500 rounded-full blur-3xl opacity-20 mix-blend-overlay animate-blob animation-delay-4000"></div>
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#F3F4F6]">
+            {/* Subtle Professional Background */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-600 to-transparent opacity-10"></div>
+                <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-emerald-500/5 rounded-full blur-3xl"></div>
             </div>
 
             <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                className="w-full max-w-lg p-6 md:p-10 relative z-10 bg-slate-900/40 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-white/20"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden relative z-10 border border-slate-100"
             >
-                <div className="flex flex-col items-center mb-10">
-                    <div className="relative w-48 h-auto mb-6 p-4 bg-white/20 rounded-2xl shadow-lg border border-white/30 backdrop-blur-sm">
-                        <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-xl" />
+                {/* Header Section */}
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-8 text-center text-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+
+                    <div className="relative z-10 flex flex-col items-center">
+                        <div className="w-20 h-20 bg-white rounded-2xl p-2 shadow-lg mb-4 flex items-center justify-center">
+                            <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain mix-blend-multiply" />
+                        </div>
+                        <h2 className="text-2xl font-bold tracking-tight">Welcome Back</h2>
+                        <p className="text-emerald-50 text-sm mt-1">SBH Complaints System</p>
                     </div>
-                    <p className="text-white/80 font-bold tracking-widest text-xs uppercase drop-shadow-sm mb-2">SBH Group of Hospitals</p>
-                    <h2 className="text-4xl font-black text-white tracking-tight mb-4 text-center drop-shadow-md leading-tight">
-                        SBH Complaints System
-                    </h2>
-                    <p className="text-white/90 font-bold text-[10px] uppercase drop-shadow-sm bg-white/20 px-4 py-2 rounded-xl border border-white/20 backdrop-blur-md">
-                        (Please Use Only For the complaint)
-                    </p>
                 </div>
 
-                {error && (
-                    <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="bg-red-500/20 border border-red-500/50 text-white p-4 mb-8 rounded-xl flex items-center gap-3 backdrop-blur-sm"
-                    >
-                        <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
-                        <p className="text-sm font-bold">{error}</p>
-                    </motion.div>
-                )}
+                <div className="p-8 pt-10">
+                    {error && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="bg-red-50 border-l-4 border-red-500 text-red-700 p-3 mb-6 rounded text-sm font-medium flex items-center gap-2"
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                            {error}
+                        </motion.div>
+                    )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <User className="text-white/70 group-focus-within:text-white transition-colors" size={20} />
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Username</label>
+                            <div className="relative group">
+                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                    <User size={18} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Enter your username"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    required
+                                />
+                            </div>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Username"
-                            className="w-full pl-20 pr-6 py-5 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all placeholder:text-white/50 text-white font-bold shadow-lg"
-                            value={formData.username}
-                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                            required
-                        />
-                    </div>
 
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <Lock className="text-white/70 group-focus-within:text-white transition-colors" size={20} />
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
+                            <div className="relative group">
+                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                    <Lock size={18} />
+                                </div>
+                                <input
+                                    type="password"
+                                    placeholder="••••••••"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    required
+                                />
+                            </div>
                         </div>
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            className="w-full pl-20 pr-6 py-5 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all placeholder:text-white/50 text-white font-bold shadow-lg"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                        />
-                    </div>
 
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="w-full py-5 bg-white text-indigo-600 font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl hover:shadow-2xl hover:bg-slate-50 hover:scale-[1.01] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-wait mt-4"
-                    >
-                        {isLoading ? (
-                            <div className="w-5 h-5 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-                        ) : (
-                            <>
-                                <span>Sign In to Dashboard</span>
-                                <Lock size={16} className="opacity-70" />
-                            </>
-                        )}
-                    </button>
-                </form>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 hover:shadow-xl transition-all active:scale-[0.99] flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-wait"
+                        >
+                            {isLoading ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            ) : (
+                                <>
+                                    <span>Sign In</span>
+                                    <ChevronRight size={16} />
+                                </>
+                            )}
+                        </button>
+                    </form>
+                </div>
 
-                <div className="mt-10 text-center">
-                    <p className="text-white/60 font-medium text-sm">
-                        New Staff Member?{' '}
-                        <Link to="/signup" className="text-white font-bold hover:underline decoration-2 underline-offset-4 decoration-yellow-400">
+                <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
+                    <p className="text-slate-500 text-sm font-medium">
+                        Need an account?{' '}
+                        <Link to="/signup" className="text-emerald-600 font-bold hover:text-emerald-700 transition-colors">
                             Request Access
                         </Link>
                     </p>
                 </div>
+
             </motion.div>
 
-            {/* Fixed Footer */}
-            <Footer />
+            {/* Simple Footer Link/Copyright */}
+            <div className="absolute bottom-4 text-center w-full">
+                <Footer compact={true} />
+            </div>
         </div>
     );
 };
 
 export default Login;
+

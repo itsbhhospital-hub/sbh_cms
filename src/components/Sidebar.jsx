@@ -129,7 +129,7 @@ const Sidebar = () => {
                             <div className="mt-10 mb-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                 {(!collapsed || mobileOpen) && 'Administration'}
                             </div>
-                            <NavItem to="/admin-users" icon={Users} label="User Management" />
+                            <NavItem to="/user-management" icon={Users} label="User Management" />
                         </>
                     )}
                 </div>

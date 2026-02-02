@@ -43,7 +43,8 @@ export const AuthProvider = ({ children }) => {
         try {
             // In a real app, successful login returns a token. 
             // Here we fetch all users and find a match (Security Warning: Logic is Client Side)
-            const users = await sheetsService.getUsers(true);
+            // optimized to use cache (false) unless explicitly needed
+            const users = await sheetsService.getUsers();
 
             // Fallback: Hardcoded Admin for immediate access if sheet is empty or failing
             if (username === 'admin' && password === 'admin123') {

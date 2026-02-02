@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { sheetsService } from '../services/googleSheets';
 import ComplaintList from '../components/ComplaintList';
 import { motion } from 'framer-motion';
-import { Activity, CheckCircle, AlertCircle, Clock, Plus, History, Shield, Users, Database } from 'lucide-react';
+import { Activity, CheckCircle, AlertCircle, Clock, Plus, History, Shield, Users, Database, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -47,108 +47,107 @@ const Dashboard = () => {
         setStats({ open, resolved, delayed, total, staffCount });
     };
 
-    const StatCard = ({ icon: Icon, title, value, gradient, delay, textColor }) => (
+    const StatCard = ({ icon: Icon, title, value, colorClass, bgClass, delay }) => (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay }}
-            className={`p-6 rounded-[2rem] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.08)] relative overflow-hidden group bg-white border border-slate-100 hover:border-pink-500/10 transition-all duration-500`}
+            className="p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group"
         >
-            <div className={`absolute top-0 right-0 p-4 opacity-[0.05] group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500 ${textColor}`}>
-                <Icon size={120} />
+            <div className={`absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity transform group-hover:scale-110 duration-500`}>
+                <Icon size={100} className="text-slate-900" />
             </div>
 
             <div className="relative z-10 flex flex-col h-full justify-between">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 ${gradient} shadow-lg text-white`}>
-                    <Icon size={26} />
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${bgClass} ${colorClass}`}>
+                    <Icon size={24} />
                 </div>
                 <div>
-                    <h4 className="text-4xl font-black text-slate-800 mb-1">{value}</h4>
-                    <p className="text-slate-400 text-xs font-bold tracking-widest uppercase">{title}</p>
+                    <h4 className="text-3xl font-black text-slate-800 mb-1 tracking-tight">{value}</h4>
+                    <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">{title}</p>
                 </div>
             </div>
         </motion.div>
     );
 
-    // --- UNIFIED VIBRANT THEME FOR ALL USERS (Admin + Staff) ---
-    // User requested "same colourful" look for both.
-
     return (
-        <div className="max-w-7xl mx-auto space-y-10 pb-20">
-            {/* Header: Vibrant Gradient for Everyone */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-10 rounded-[2.5rem] shadow-2xl shadow-indigo-200 text-white relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/20 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none group-hover:scale-110 transition-transform duration-1000"></div>
+        <div className="max-w-7xl mx-auto space-y-8 pb-20">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-20 -mt-20 opacity-60 pointer-events-none"></div>
 
                 <div className="relative z-10">
-                    {isAdmin && (
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-white/20 border border-white/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-white/90 flex items-center gap-2">
-                                <Shield size={12} /> Admin Console
-                            </span>
-                        </div>
-                    )}
-                    <h1 className="text-5xl font-black tracking-tight mb-2 drop-shadow-md">Dashboard</h1>
-                    <p className="text-indigo-100 font-medium text-lg">
-                        Overview for <span className="text-white font-black bg-white/20 px-3 py-1 rounded-xl border border-white/20 backdrop-blur-md">{user.Department || 'General'}</span> Department
+                    <div className="flex items-center gap-2 mb-2 text-emerald-600">
+                        <LayoutDashboard size={20} />
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-900/60">
+                            {isAdmin ? 'Admin Console' : 'Staff Dashboard'}
+                        </span>
+                    </div>
+                    <h1 className="text-4xl font-black text-slate-800 tracking-tight mb-2">Overview</h1>
+                    <p className="text-slate-500 font-medium text-lg">
+                        Welcome back, <span className="text-slate-900 font-bold">{user.Username}</span>
+                        {user.Department && <span className="bg-slate-100 px-2 py-0.5 rounded-md text-sm ml-2 border border-slate-200">{user.Department}</span>}
                     </p>
                 </div>
 
                 <div className="flex gap-3 relative z-10">
                     {isAdmin && (
-                        <Link to="/admin-users" className="bg-white/20 hover:bg-white/30 text-white px-6 py-4 rounded-2xl font-bold backdrop-blur-md border border-white/30 transition-all flex items-center gap-2">
-                            <Users size={20} /> <span className="hidden md:inline">Users</span>
+                        <Link to="/user-management" className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow">
+                            <Users size={18} /> <span className="hidden md:inline">Manage Users</span>
                         </Link>
                     )}
-                    <Link to="/new-complaint" className="group flex items-center gap-3 bg-white text-indigo-900 px-8 py-4 rounded-2xl font-bold shadow-xl transition-all active:scale-95 hover:bg-indigo-50">
-                        <div className="bg-indigo-100 p-1.5 rounded-full"><Plus size={18} className="text-indigo-600 group-hover:rotate-90 transition-transform" /></div>
+                    <Link to="/new-complaint" className="group flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all active:scale-[0.98] hover:bg-emerald-700">
+                        <Plus size={18} className="group-hover:rotate-90 transition-transform" />
                         <span>New Ticket</span>
                     </Link>
                 </div>
             </div>
 
-            {/* Stats Grid - MULTI COLOR for Everyone */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     icon={AlertCircle} title="Open Cases" value={stats.open}
-                    gradient="bg-gradient-to-br from-orange-400 to-red-500" textColor="text-orange-500" delay={0.1}
+                    bgClass="bg-orange-50" colorClass="text-orange-600" delay={0.1}
                 />
                 <StatCard
                     icon={CheckCircle} title="Resolved" value={stats.resolved}
-                    gradient="bg-gradient-to-br from-emerald-400 to-teal-500" textColor="text-emerald-500" delay={0.2}
+                    bgClass="bg-emerald-50" colorClass="text-emerald-600" delay={0.2}
                 />
                 {!isAdmin ? (
                     <StatCard
-                        icon={Clock} title="Delayed (>24h)" value={stats.delayed}
-                        gradient="bg-gradient-to-br from-pink-500 to-rose-600" textColor="text-pink-500" delay={0.3}
+                        icon={Clock} title="Delayed Cases" value={stats.delayed}
+                        bgClass="bg-red-50" colorClass="text-red-600" delay={0.3}
                     />
                 ) : (
                     <StatCard
-                        icon={Users} title="Staff Members" value={stats.staffCount}
-                        gradient="bg-gradient-to-br from-blue-500 to-indigo-600" textColor="text-blue-500" delay={0.3}
+                        icon={Users} title="Active Staff" value={stats.staffCount}
+                        bgClass="bg-blue-50" colorClass="text-blue-600" delay={0.3}
                     />
                 )}
 
                 <StatCard
-                    icon={isAdmin ? Database : History} title={isAdmin ? "Total Records" : "Total History"} value={stats.total}
-                    gradient="bg-gradient-to-br from-violet-500 to-purple-600" textColor="text-purple-500" delay={0.4}
+                    icon={isAdmin ? Database : History} title={isAdmin ? "Total Records" : "My History"} value={stats.total}
+                    bgClass="bg-purple-50" colorClass="text-purple-600" delay={0.4}
                 />
             </div>
 
             {/* Complaint Feed */}
-            <div className="space-y-6">
-                <div className="flex items-center gap-3 px-4">
-                    <div className="p-2 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl shadow-lg text-white">
+            <div className="space-y-4">
+                <div className="flex items-center gap-3 px-2">
+                    <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                         <Activity size={20} />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 tracking-wide">Live Activity Feed</h3>
+                    <h3 className="text-xl font-bold text-slate-800 tracking-tight">Recent Activity</h3>
                 </div>
-                {/* Wrap ComplaintList in a clean container but let the cards inside pop */}
-                <div className="bg-white/50 backdrop-blur-xl rounded-[2rem] p-6 border border-white/60 shadow-xl">
+                {/* Clean container for list */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative min-h-[400px]">
                     <ComplaintList />
                 </div>
             </div>
+
         </div>
     );
 };
 
 export default Dashboard;
+

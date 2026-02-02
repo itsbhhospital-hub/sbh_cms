@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, User, Building } from 'lucide-react';
+import { Lock, User, Building, Phone, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
+import { sheetsService } from '../services/googleSheets';
+
 
 const Signup = () => {
     const [formData, setFormData] = useState({ username: '', password: '', department: '', mobile: '' });
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const { signup } = useAuth();
+    const navigate = useNavigate();
 
     const DEPARTMENTS = [
         'TPA', 'TPA ACCOUNTANT', 'HR', 'OPERATION', 'PHARMACY',
@@ -20,6 +23,30 @@ const Signup = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
+            // 1. Fetch existing users to check for duplicates
+            const existingUsers = await sheetsService.getUsers();
+
+            // 2. Normalize inputs for comparison
+            const newUsername = formData.username.trim().toLowerCase();
+            const newMobile = formData.mobile.trim();
+
+            // 3. Check for Duplicates
+            const duplicateUser = existingUsers.find(u => u.Username.toLowerCase() === newUsername);
+            const duplicateMobile = existingUsers.find(u => u.Mobile && u.Mobile.toString() === newMobile);
+
+            if (duplicateUser) {
+                alert("Username is already taken. Please choose another.");
+                setIsLoading(false);
+                return;
+            }
+
+            if (duplicateMobile) {
+                alert("This mobile number is already registered.");
+                setIsLoading(false);
+                return;
+            }
+
+            // 4. Proceed if unique
             await signup(formData);
             setShowModal(true);
             setFormData({ username: '', password: '', department: '', mobile: '' });
@@ -31,133 +58,147 @@ const Signup = () => {
         }
     };
 
+
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-900/85 via-purple-900/85 to-pink-900/85 relative overflow-hidden">
-            {/* Ambient Light Background */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-                <div className="absolute -top-40 right-0 w-[500px] h-[500px] bg-emerald-500 rounded-full blur-3xl opacity-20 mix-blend-overlay animate-blob"></div>
-                <div className="absolute bottom-0 -left-20 w-[600px] h-[600px] bg-blue-500 rounded-full blur-3xl opacity-20 mix-blend-overlay animate-blob animation-delay-4000"></div>
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#F3F4F6]">
+            {/* Subtle Professional Background */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-600 to-transparent opacity-[0.03]"></div>
+                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl"></div>
             </div>
 
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-md p-6 md:p-10 relative z-10 bg-slate-900/40 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-white/20"
+                className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden relative z-10 border border-slate-100"
             >
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-md">Create Account</h2>
-                    <p className="text-white/80 font-medium mt-1">Join the SBH Team</p>
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-8 text-center text-white relative">
+                    <div className="relative z-10">
+                        <h2 className="text-2xl font-bold tracking-tight">Create Account</h2>
+                        <p className="text-emerald-50 text-sm mt-1">Join the SBH Team</p>
+                    </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <User className="text-white/70 group-focus-within:text-white transition-colors" size={20} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Username"
-                            className="w-full pl-16 pr-5 py-4 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all font-bold text-white placeholder:text-white/50 shadow-lg"
-                            value={formData.username}
-                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                            required
-                        />
-                    </div>
+                <div className="p-8">
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Username</label>
+                                <div className="relative group">
+                                    <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                        <User size={18} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Username"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm"
+                                        value={formData.username}
+                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
 
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <Lock className="text-white/70 group-focus-within:text-white transition-colors" size={20} />
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
+                                <div className="relative group">
+                                    <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                        <Lock size={18} />
+                                    </div>
+                                    <input
+                                        type="password"
+                                        placeholder="Password"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            className="w-full pl-16 pr-5 py-4 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all font-bold text-white placeholder:text-white/50 shadow-lg"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                        />
-                    </div>
 
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <Building className="text-white/70 group-focus-within:text-white transition-colors" size={20} />
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Department</label>
+                            <div className="relative group">
+                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                    <Building size={18} />
+                                </div>
+                                <select
+                                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm appearance-none cursor-pointer"
+                                    value={formData.department}
+                                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                                    required
+                                >
+                                    <option value="" disabled>Select Department</option>
+                                    {DEPARTMENTS.sort().map(dept => (
+                                        <option key={dept} value={dept}>{dept}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-4 top-4 pointer-events-none text-slate-400 text-xs">▼</div>
+                            </div>
                         </div>
-                        <select
-                            className="w-full pl-16 pr-10 py-4 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all font-bold text-white shadow-lg appearance-none cursor-pointer [&>option]:bg-slate-800"
-                            value={formData.department}
-                            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                            required
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Mobile</label>
+                            <div className="relative group">
+                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                                    <Phone size={18} />
+                                </div>
+                                <input
+                                    type="tel"
+                                    placeholder="10-Digit Mobile Number"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 transition-all text-slate-700 font-medium text-sm"
+                                    value={formData.mobile}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '');
+                                        if (val.length <= 10) setFormData({ ...formData, mobile: val });
+                                    }}
+                                    required
+                                    pattern="\d{10}"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 hover:shadow-xl transition-all active:scale-[0.99] flex items-center justify-center gap-2 mt-2 disabled:opacity-70 disabled:cursor-wait"
                         >
-                            <option value="" disabled className="text-slate-400">Select Department</option>
-                            {DEPARTMENTS.sort().map(dept => (
-                                <option key={dept} value={dept}>{dept}</option>
-                            ))}
-                        </select>
-                        <div className="absolute right-4 top-4 pointer-events-none text-white/70 text-xs">▼</div>
-                    </div>
+                            {isLoading ? (
+                                <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin"></div>
+                            ) : (
+                                "Create Account"
+                            )}
+                        </button>
+                    </form>
+                </div>
 
-                    <div className="relative group">
-                        <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-white/10 rounded-l-2xl border-r border-white/10 group-focus-within:bg-white/20 transition-colors">
-                            <span className="text-white/70 group-focus-within:text-white transition-colors font-bold text-lg">📞</span>
-                        </div>
-                        <input
-                            type="tel"
-                            placeholder="Mobile Number (10 Digits)"
-                            className="w-full pl-16 pr-5 py-4 bg-white/10 border border-white/10 rounded-2xl outline-none focus:ring-4 focus:ring-white/20 focus:border-white/40 transition-all font-bold text-white placeholder:text-white/50 shadow-lg"
-                            value={formData.mobile}
-                            onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                if (val.length <= 10) setFormData({ ...formData, mobile: val });
-                            }}
-                            required
-                            pattern="\d{10}"
-                            title="Please enter a valid 10-digit mobile number"
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="w-full py-5 bg-white hover:bg-slate-50 text-indigo-900 font-black uppercase tracking-widest text-sm rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-[0.98] transition-all mt-4 disabled:opacity-70 disabled:cursor-wait flex items-center justify-center gap-3"
-                    >
-                        {isLoading ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-indigo-900/30 border-t-indigo-900 rounded-full animate-spin"></div>
-                                <span>Creating...</span>
-                            </>
-                        ) : (
-                            "Create Account"
-                        )}
-                    </button>
-                </form>
-
-                <div className="mt-8 text-center text-sm">
-                    <p className="text-white/60 font-medium">
+                <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
+                    <p className="text-slate-500 text-sm font-medium">
                         Already have an account?{' '}
-                        <Link to="/login" className="text-white font-bold hover:underline decoration-2 underline-offset-4 decoration-yellow-400">
+                        <Link to="/login" className="text-emerald-600 font-bold hover:underline">
                             Sign in
                         </Link>
                     </p>
                 </div>
             </motion.div>
 
+
             {/* Success Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 animate-in zoom-in-95 duration-300 border-4 border-emerald-100">
-                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-                            <span className="text-4xl">🎉</span>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+                            <span className="text-3xl">✓</span>
                         </div>
-                        <h3 className="text-2xl font-black text-slate-800 mb-2">Thank You!</h3>
-                        <p className="text-slate-500 font-medium mb-6 leading-relaxed">
-                            Your registration was successful. <br /><br />
-                            <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">Status: Pending Approval</span>
-                            <br /><br />
-                            Please wait for Admin approval. You will receive a <span className="text-green-600 font-bold">WhatsApp notification</span> once active.
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Registration Successful</h3>
+                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                            Your account is pending admin approval.<br />
+                            You will be notified once active.
                         </p>
                         <Link
                             to="/login"
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-95 inline-block w-full"
+                            className="bg-slate-900 hover:bg-black text-white font-bold py-3 px-8 rounded-xl transition-all block w-full text-sm"
                         >
                             Return to Login
                         </Link>
@@ -165,8 +206,10 @@ const Signup = () => {
                 </div>
             )}
 
-            {/* Fixed Footer */}
-            <Footer />
+            {/* Simple Footer Link/Copyright */}
+            <div className="absolute bottom-4 text-center w-full">
+                <Footer compact={true} />
+            </div>
         </div>
     );
 };

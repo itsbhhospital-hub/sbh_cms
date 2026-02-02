@@ -90,7 +90,8 @@ const ComplaintForm = ({ onComplaintCreated }) => {
                             >
                                 <option value="" className="text-gray-400">Select Department</option>
                                 {DEPARTMENTS.sort().map(d => (
-                                    <option key={d} value={d} className="py-2 text-slate-700 font-medium">✨ {d}</option>
+                                    <option key={d} value={d} className="py-2 text-slate-700 font-medium">{d}</option>
+
                                 ))}
                             </select>
                             <div className="absolute right-6 top-6 pointer-events-none text-indigo-400 group-hover:text-indigo-600 transition-colors transform group-hover:scale-110">

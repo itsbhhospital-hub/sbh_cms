@@ -8,54 +8,90 @@ import axios from 'axios';
 const API_URL = 'https://script.google.com/macros/s/AKfycbwAxx7PkRMx7aCNsv0NqC-QTB4AKPd2OpkPzEIxnCLm4PrWct8ioqI-8pPCBHbKtsRU/exec';
 
 // --- MOCK DATA FALLBACK ---
-// NOTE: Fallback is DISABLED for Production Testing to ensure API Connectivity.
 const MOCK_USERS = [
     { Username: 'admin', Password: 'admin123', Role: 'admin', Status: 'Active', Department: 'ADMIN' },
 ];
 
-const getLocalData = (key, defaultData) => {
-    const stored = localStorage.getItem(`sbh_mock_${key}`);
-    return stored ? JSON.parse(stored) : defaultData;
+// --- LOCAL STORAGE CACHE HELPERS ---
+const CACHE_PREFIX = 'sbh_cache_';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 Minutes (Increased for better performance)
+
+const getCachedData = (key) => {
+    try {
+        const item = localStorage.getItem(CACHE_PREFIX + key);
+        if (!item) return null;
+
+        const { value, timestamp } = JSON.parse(item);
+        const now = Date.now();
+
+        if (now - timestamp > CACHE_DURATION) {
+            console.log(`[Cache] Expired for ${key}`);
+            localStorage.removeItem(CACHE_PREFIX + key);
+            return null;
+        }
+
+        console.log(`[Cache] Hit for ${key}`);
+        return value;
+    } catch (e) {
+        console.error("Cache Read Error", e);
+        return null;
+    }
+};
+
+const setCachedData = (key, value) => {
+    try {
+        const item = {
+            value,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+    } catch (e) {
+        console.error("Cache Write Error", e);
+    }
+};
+
+const invalidateCache = (key) => {
+    localStorage.removeItem(CACHE_PREFIX + key);
 };
 
 // --- API HELPERS ---
 
-/**
- * Fetch data using the Web App URL
- */
-// --- CACHE & HELPERS ---
-const CACHE_DURATION = 60 * 1000; // 1 minute
-const cache = {
-    data: { timestamp: 0, payload: [] },
-    master: { timestamp: 0, payload: [] }
-};
-
 const fetchSheetData = async (sheetName, forceRefresh = false) => {
-    // Return cached data if valid and not forcing refresh
-    const now = Date.now();
-    if (!forceRefresh && cache[sheetName] && (now - cache[sheetName].timestamp < CACHE_DURATION)) {
-        console.log(`Using cached ${sheetName} data`);
-        return cache[sheetName].payload;
+    // 1. Check Cache
+    if (!forceRefresh) {
+        const cached = getCachedData(sheetName);
+        if (cached) return cached;
     }
 
+    // 2. Fetch Network
     try {
-        const response = await fetch(`${API_URL}?action=read&sheet=${sheetName}`);
+        console.log(`[API] Fetching ${sheetName}...`);
+        // Use fetch with no-cache to ensure we get fresh data from server when we actually ask
+        const response = await fetch(`${API_URL}?action=read&sheet=${sheetName}`, { cache: "no-store" });
         const data = await response.json();
 
-        // Check for Script Error (sometimes script returns 200 but content is error info)
+        // Check for Script Error
         if (data.status === 'error') throw new Error(data.message);
 
         const result = Array.isArray(data) ? data : [];
-        // Update cache
-        cache[sheetName] = { timestamp: now, payload: result };
+
+        // 3. Update Cache
+        setCachedData(sheetName, result);
         return result;
     } catch (error) {
         console.error("API Read Error:", error);
-        // CRITICAL: Return empty or throw, DO NOT FALLBACK TO MOCK silently during final test
-        // if (sheetName === 'master') return getLocalData('users', MOCK_USERS);
-        console.warn("Using offline mock data due to API failure.");
-        // Uncomment line below to ENABLE mock fallback if API fails completely
-        if (sheetName === 'master') return MOCK_USERS;
+
+        // Fallback to cache even if expired if network fails? 
+        // For now, if master fails and we have nothing, return mock
+        if (sheetName === 'master') {
+            // Try to get expired cache if available?
+            const stale = localStorage.getItem(CACHE_PREFIX + sheetName);
+            if (stale) {
+                console.warn("Returning stale cache due to API error");
+                return JSON.parse(stale).value;
+            }
+            return MOCK_USERS;
+        }
         return [];
     }
 };
@@ -67,27 +103,23 @@ const sendToSheet = async (action, payload) => {
             body: JSON.stringify({ action, payload })
         });
 
-        // Invalidate cache on write
-        if (action === 'createComplaint' || action === 'updateComplaintStatus') cache.data.timestamp = 0;
-        if (action === 'registerUser' || action === 'updateUser') cache.master.timestamp = 0;
-
         const result = await response.json();
+
+        // Invalidate Cache on Successful Write
+        if (action === 'createComplaint' || action === 'updateComplaintStatus') {
+            invalidateCache('data'); // 'data' is the sheet name for complaints
+        }
+        if (action === 'registerUser' || action === 'updateUser') {
+            invalidateCache('master'); // 'master' is the sheet name for users
+        }
+
         if (result.status === 'error') throw new Error(result.message);
-        return result; // Return full result including ID
+        return result;
     } catch (error) {
         console.error("API Write Error:", error);
-        alert(`API Connection Failed: ${error.message}. Check Internet or Scripts.`);
-        throw error; // Stop execution
+        alert(`API Connection Failed: ${error.message}. Please check your connection.`);
+        throw error;
     }
-};
-
-const saveLocally = (action, payload) => {
-    if (action === 'registerUser') {
-        const users = getLocalData('users', MOCK_USERS);
-        users.push({ ...payload, Role: 'User', Status: 'Pending' });
-        localStorage.setItem('sbh_mock_users', JSON.stringify(users));
-    }
-    return true;
 };
 
 export const sheetsService = {
@@ -97,7 +129,7 @@ export const sheetsService = {
     createComplaint: async (complaint) => {
         const payload = {
             ID: Date.now().toString(),
-            Date: new Date().toISOString(), // Client-side date
+            Date: new Date().toISOString(),
             Department: complaint.department,
             Description: complaint.description,
             ReportedBy: complaint.reportedBy
@@ -109,7 +141,7 @@ export const sheetsService = {
         const payload = {
             ID: id,
             Status: status,
-            ResolvedBy: resolvedBy, // Pass who resolved it
+            ResolvedBy: resolvedBy,
             Remark: remark
         };
         return sendToSheet('updateComplaintStatus', payload);
@@ -126,7 +158,6 @@ export const sheetsService = {
     },
 
     updateUser: async (user) => {
-        // payload: { Username, Role, Status, Password, Department... }
         return sendToSheet('updateUser', user);
     }
 };

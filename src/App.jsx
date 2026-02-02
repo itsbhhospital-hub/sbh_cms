@@ -16,12 +16,14 @@ const ProtectedRoute = ({ children }) => {
 
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
+import SessionTimer from './components/SessionTimer';
 
 // Layout component with Sidebar
 // Removed bg-slate-50 to let global background show
 const Layout = ({ children }) => {
   return (
     <div className="min-h-screen flex relative">
+      <SessionTimer />
       <Sidebar />
       {/* Optimized Main Content: Removed overflow-x-hidden to prevent sticky conflict, removed 100vw to prevent scrollbar shift */}
       <main className="flex-1 p-4 md:p-10 ml-0 transition-all flex flex-col min-h-screen">
@@ -34,14 +36,12 @@ const Layout = ({ children }) => {
   );
 };
 
+
 function App() {
   return (
     <AuthProvider>
-      {/* GLOBAL BACKGROUND: Hospital Image + White Overlay */}
-      <div className="fixed inset-0 w-full h-full z-[-10]">
-        <img src={sbhBg} alt="Background" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-white/90 backdrop-blur-[2px]"></div> {/* 90% White Overlay */}
-      </div>
+      {/* Optimized Main Content */}
+
 
       <Router>
         <Routes>
@@ -61,7 +61,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
-          <Route path="/admin-users" element={
+          <Route path="/user-management" element={
             <ProtectedRoute>
               <Layout>
                 <UserManagement />
