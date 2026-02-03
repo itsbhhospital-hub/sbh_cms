@@ -3,11 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard,
     FilePlus,
+    FileText,
     Users,
     LogOut,
     Settings,
     Menu,
-    X
+    X,
+    Shield
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -96,8 +98,8 @@ const Sidebar = () => {
                     </div>
                     {(!collapsed || mobileOpen) && (
                         <div>
-                            <h1 className="font-black text-xl leading-tight text-white tracking-tight">SBH Group</h1>
-                            <p className="text-[10px] text-indigo-200 uppercase font-black tracking-widest">Portal</p>
+                            <h1 className="font-bold text-xl leading-tight text-white">SBH Group</h1>
+                            <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wide">Portal</p>
                         </div>
                     )}
 
@@ -117,16 +119,17 @@ const Sidebar = () => {
 
                 {/* Nav */}
                 <div className="flex-1 px-4 py-8 overflow-y-auto custom-scrollbar">
-                    <div className="mb-4 px-4 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                    <div className="mb-4 px-4 text-[10px] font-bold text-white/40 uppercase tracking-wide">
                         {(!collapsed || mobileOpen) && 'Main Menu'}
                     </div>
 
                     <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
                     <NavItem to="/new-complaint" icon={FilePlus} label="New Ticket" />
+                    <NavItem to="/my-complaints" icon={FileText} label="My Complaints" /> {/* Added My Complaints NavItem */}
 
                     {user.Role === 'admin' && (
                         <>
-                            <div className="mt-10 mb-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <div className="mt-10 mb-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
                                 {(!collapsed || mobileOpen) && 'Administration'}
                             </div>
                             <NavItem to="/user-management" icon={Users} label="User Management" />
@@ -134,32 +137,6 @@ const Sidebar = () => {
                     )}
                 </div>
 
-                {/* User Footer */}
-                <div className={`p-6 border-t border-white/20 bg-white/10 mb- safe-bottom ${(collapsed && !mobileOpen) ? 'flex justify-center' : ''}`}>
-                    <div className={`flex items-center gap-3 ${(collapsed && !mobileOpen) ? 'flex-col' : ''}`}>
-                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold shadow-lg border border-white/30 backdrop-blur-md min-w-[2.5rem]">
-                            {user.Username.charAt(0).toUpperCase()}
-                        </div>
-                        {(!collapsed || mobileOpen) && (
-                            <div className="overflow-hidden">
-                                <p className="font-bold text-sm truncate text-white drop-shadow-md">{user.Username}</p>
-                                <p className="text-xs text-white/70 truncate capitalize font-medium">{user.Department || user.Role}</p>
-                                <p className="text-[10px] text-emerald-300 font-mono mt-0.5 opacity-80">
-                                    Time Left: {timeLeft}
-                                </p>
-                            </div>
-                        )}
-                        {(!collapsed || mobileOpen) && (
-                            <button
-                                onClick={logout}
-                                className="ml-auto p-2 text-white/60 hover:text-white hover:bg-white/20 rounded-xl transition-all"
-                                title="Logout"
-                            >
-                                <LogOut size={18} />
-                            </button>
-                        )}
-                    </div>
-                </div>
             </div>
         </>
     );

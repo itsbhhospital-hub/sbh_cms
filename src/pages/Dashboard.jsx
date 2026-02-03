@@ -15,34 +15,68 @@ const Dashboard = () => {
         calculateStats();
     }, []);
 
+    // Helper for robust key access
+    const safeGet = (obj, key) => {
+        if (!obj) return '';
+        const norm = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
+        const target = norm(key);
+
+        // 1. Direct match
+        if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+
+        // 2. Normalized match (handles case and spaces)
+        const foundKey = Object.keys(obj).find(k => norm(k) === target);
+        if (foundKey) return obj[foundKey];
+
+        // 3. Special handling for ID/TID
+        if (target === 'id' || target === 'tid' || target === 'complaintid' || target === 'ticketid') {
+            const idKey = Object.keys(obj).find(k => {
+                const nk = norm(k);
+                return nk === 'id' || nk === 'tid' || nk === 'ticketid' || nk === 'complaintid' || nk.includes('ticketid') || (nk.includes('id') && nk.length < 15);
+            });
+            if (idKey) return obj[idKey];
+        }
+
+        return '';
+    };
+
     const calculateStats = async () => {
         const [complaintsData, usersData] = await Promise.all([
             sheetsService.getComplaints(),
             isAdmin ? sheetsService.getUsers() : Promise.resolve([])
         ]);
 
-        const role = user?.Role?.toLowerCase();
-        const dept = user?.Department;
+        const role = safeGet(user, 'Role').toLowerCase().trim();
+        const userDept = safeGet(user, 'Department').toLowerCase().trim();
+        const username = safeGet(user, 'Username').toLowerCase().trim();
 
         const relevant = complaintsData.filter(c => {
+            const cDept = safeGet(c, 'Department').toLowerCase().trim();
+            const cReportedBy = safeGet(c, 'ReportedBy').toLowerCase().trim();
+
             if (role === 'admin') return true;
-            if (c.Department === dept) return true;
-            if (c.ReportedBy === user.Username) return true;
+            if (userDept && cDept === userDept) return true;
+            if (cReportedBy === username) return true;
             return false;
         });
 
-        const open = relevant.filter(c => c.Status === 'Open').length;
-        const resolved = relevant.filter(c => c.Status === 'Solved' || c.Status === 'Closed').length;
+        const open = relevant.filter(c => safeGet(c, 'Status').trim().toLowerCase() === 'open').length;
+        const resolved = relevant.filter(c => {
+            const s = safeGet(c, 'Status').trim().toLowerCase();
+            return s === 'solved' || s === 'closed';
+        }).length;
         const total = relevant.length;
 
         const delayed = relevant.filter(c => {
-            if (c.Status !== 'Open') return false;
-            const diff = Date.now() - new Date(c.Date).getTime();
+            if (safeGet(c, 'Status').trim().toLowerCase() !== 'open') return false;
+            const d = safeGet(c, 'Date');
+            if (!d) return false;
+            const diff = Date.now() - new Date(d).getTime();
             return diff > 86400000;
         }).length;
 
         // Calculate Staff Count (Active Users)
-        const staffCount = isAdmin ? usersData.filter(u => u.Status === 'Active').length : 0;
+        const staffCount = isAdmin ? usersData.filter(u => safeGet(u, 'Status') === 'Active').length : 0;
 
         setStats({ open, resolved, delayed, total, staffCount });
     };
@@ -63,8 +97,8 @@ const Dashboard = () => {
                     <Icon size={24} />
                 </div>
                 <div>
-                    <h4 className="text-3xl font-black text-slate-800 mb-1 tracking-tight">{value}</h4>
-                    <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">{title}</p>
+                    <h4 className="text-2xl font-bold text-slate-800 mb-1">{value}</h4>
+                    <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">{title}</p>
                 </div>
             </div>
         </motion.div>
@@ -79,12 +113,12 @@ const Dashboard = () => {
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-2 text-emerald-600">
                         <LayoutDashboard size={20} />
-                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-900/60">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-emerald-900/60">
                             {isAdmin ? 'Admin Console' : 'Staff Dashboard'}
                         </span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-800 tracking-tight mb-2">Overview</h1>
-                    <p className="text-slate-500 font-medium text-lg">
+                    <h1 className="text-3xl font-bold text-slate-800 mb-2">Overview</h1>
+                    <p className="text-slate-500 font-medium">
                         Welcome back, <span className="text-slate-900 font-bold">{user.Username}</span>
                         {user.Department && <span className="bg-slate-100 px-2 py-0.5 rounded-md text-sm ml-2 border border-slate-200">{user.Department}</span>}
                     </p>
@@ -137,7 +171,7 @@ const Dashboard = () => {
                     <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                         <Activity size={20} />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 tracking-tight">Recent Activity</h3>
+                    <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
                 </div>
                 {/* Clean container for list */}
                 <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative min-h-[400px]">

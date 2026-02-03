@@ -34,203 +34,182 @@ function doPost(e) {
 
 // --- HELPER FUNCTIONS ---
 
+function findCol(headers, target) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const t = norm(target);
+    for (let i = 0; i < headers.length; i++) {
+        const h = norm(headers[i]);
+        if (h === t) return i + 1;
+        // Partial matches for common variations
+        if (t === 'id' && (h === 'tid' || h === 'ticketid')) return i + 1;
+        if (t === 'mobile' && h.includes('phone')) return i + 1;
+        if (t === 'department' && h === 'dept') return i + 1;
+    }
+    return -1;
+}
+
+function getColMap(headers) {
+    const map = {};
+    const keys = ['ID', 'Date', 'Department', 'Description', 'Status', 'ReportedBy', 'ResolvedBy', 'Remark', 'Username', 'Password', 'Role', 'Mobile'];
+    keys.forEach(k => {
+        const idx = findCol(headers, k);
+        if (idx !== -1) map[k] = idx;
+    });
+    return map;
+}
+
 function response(status, message, data) {
-    const result = {
-        status: status,
-        message: message,
-        data: data
-    };
-    return ContentService.createTextOutput(JSON.stringify(result))
+    return ContentService.createTextOutput(JSON.stringify({ status, message, data }))
         .setMimeType(ContentService.MimeType.JSON);
 }
 
 function readData(sheetName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(sheetName);
-
     if (!sheet) return response('error', 'Sheet not found');
-
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
-    const rows = data.slice(1);
-
-    const result = rows.map(row => {
+    return ContentService.createTextOutput(JSON.stringify(data.slice(1).map(row => {
         const obj = {};
-        headers.forEach((h, i) => {
-            obj[h] = row[i];
-        });
+        headers.forEach((h, i) => obj[h || ('Col' + i)] = row[i]);
         return obj;
-    });
-
-    return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+    }))).setMimeType(ContentService.MimeType.JSON);
 }
 
 function createComplaint(payload) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('data');
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('data');
     if (!sheet) return response('error', 'Sheet "data" not found');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colMap = getColMap(headers);
+    if (!colMap.ID) return response('error', 'ID column not found');
 
-    sheet.appendRow([
-        payload.ID,
-        payload.Date,
-        payload.Department,
-        payload.Description,
-        payload.ReportedBy,
-        'Open', // Initial Status
-        '', // ResolvedBy
-        ''  // Remark
-    ]);
+    const nextRow = sheet.getLastRow() + 1;
+    const existingIds = data.slice(1).map(r => String(r[colMap.ID - 1])).filter(id => id.startsWith('SBH'));
+    let newId = 'SBH00001';
+    if (existingIds.length > 0) {
+        const match = existingIds[existingIds.length - 1].match(/SBH(\d+)/);
+        if (match) newId = 'SBH' + String(parseInt(match[1], 10) + 1).padStart(5, '0');
+    }
 
-    // Send Notification
-    sendNewComplaintNotifications(payload.Department, payload.ID, payload.ReportedBy, payload.Description);
+    const fields = {
+        'ID': newId,
+        'Date': payload.Date || new Date().toISOString(),
+        'Department': payload.Department,
+        'Description': payload.Description,
+        'Status': 'Open',
+        'ReportedBy': payload.ReportedBy
+    };
 
-    return response('success', 'Complaint Created');
+    Object.keys(fields).forEach(f => {
+        if (colMap[f]) sheet.getRange(nextRow, colMap[f]).setValue(fields[f]);
+    });
+
+    sendNewComplaintNotifications(payload.Department, newId, payload.ReportedBy, payload.Description);
+    return response('success', 'Complaint Created', { id: newId });
 }
 
 function registerUser(payload) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('master');
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('master');
     if (!sheet) return response('error', 'Sheet "master" not found');
+    const headers = sheet.getDataRange().getValues()[0];
+    const colMap = getColMap(headers);
+    const nextRow = sheet.getLastRow() + 1;
 
-    sheet.appendRow([
-        payload.Username,
-        payload.Password,
-        payload.Role, // 'user', 'admin', 'manager'
-        payload.Status, // 'Pending', 'Active'
-        payload.Department,
-        payload.Mobile
-    ]);
+    const fields = {
+        'Username': payload.Username,
+        'Password': payload.Password,
+        'Role': payload.Role || 'user',
+        'Status': payload.Status || 'Pending',
+        'Department': payload.Department,
+        'Mobile': payload.Mobile
+    };
 
+    Object.keys(fields).forEach(f => {
+        if (colMap[f]) sheet.getRange(nextRow, colMap[f]).setValue(fields[f]);
+    });
+
+    if (payload.Status === 'Active' && payload.Mobile) {
+        sendAccountApprovalNotification(payload.Username, payload.Mobile);
+    }
     return response('success', 'User Registered');
 }
 
-function updateComplaintStatus(payload) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('data');
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-
-    // Find Column Indices
-    const idCol = headers.indexOf('ID');
-    const statusCol = headers.indexOf('Status');
-    const resolvedByCol = headers.indexOf('ResolvedBy');
-    const remarkCol = headers.indexOf('Remark');
-    const reportedByCol = headers.indexOf('ReportedBy');
-
-    if (idCol === -1) return response('error', 'ID column missing');
-
-    for (let i = 1; i < data.length; i++) {
-        if (data[i][idCol] == payload.ID) {
-            // Update Rows (1-indexed)
-            if (statusCol !== -1) sheet.getRange(i + 1, statusCol + 1).setValue(payload.Status);
-            if (resolvedByCol !== -1) sheet.getRange(i + 1, resolvedByCol + 1).setValue(payload.ResolvedBy);
-            if (remarkCol !== -1) sheet.getRange(i + 1, remarkCol + 1).setValue(payload.Remark);
-
-            // Notify
-            const reportedBy = data[i][reportedByCol];
-            sendResolutionNotification(payload.ID, reportedBy, payload.Status, payload.ResolvedBy, payload.Remark);
-
-            return response('success', 'Complaint Updated');
-        }
-    }
-    return response('error', 'Complaint ID not found');
-}
-
 function updateUser(payload) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('master');
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('master');
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
+    const colMap = getColMap(headers);
+    if (!colMap.Username) return response('error', 'Username column not found');
 
-    // Map headers
-    const colMap = {};
-    headers.forEach((h, i) => colMap[h] = i + 1);
-
+    const target = (payload.OldUsername || payload.Username || '').toLowerCase().trim();
     let rowIndex = -1;
-    // Find user by Username (or OldUsername if renaming)
-    const targetUsername = payload.OldUsername || payload.Username;
-
-    const usernameCol = colMap['Username'];
-    if (!usernameCol) return response('error', 'Username column missing');
-
     for (let i = 1; i < data.length; i++) {
-        // Robust Compare: Convert to string and trim
-        const rowUser = String(data[i][usernameCol - 1]).trim();
-        const searchUser = String(targetUsername).trim();
-
-        if (rowUser === searchUser) {
+        const rowVal = String(data[i][colMap.Username - 1] || '').toLowerCase().trim();
+        if (rowVal === target) {
             rowIndex = i + 1;
             break;
         }
     }
-
     if (rowIndex === -1) return response('error', 'User not found');
 
-    // Safe Update
-    const safeUpdate = (field) => {
-        if (payload[field] !== undefined) {
-            // If column doesn't exist, create it 
-            if (!colMap[field]) {
-                const newCol = sheet.getLastColumn() + 1;
-                sheet.getRange(1, newCol).setValue(field);
-                colMap[field] = newCol;
-            }
-            sheet.getRange(rowIndex, colMap[field]).setValue(payload[field]);
-        }
-    };
+    Object.keys(payload).forEach(f => {
+        if (colMap[f]) sheet.getRange(rowIndex, colMap[f]).setValue(payload[f]);
+    });
 
-    safeUpdate('Username');
-    safeUpdate('Role');
-    safeUpdate('Status');
-    safeUpdate('Password');
-    safeUpdate('Department');
-    safeUpdate('Mobile');
+    if (payload.Status === 'Active' && colMap.Mobile) {
+        sendAccountApprovalNotification(payload.Username, sheet.getRange(rowIndex, colMap.Mobile).getValue());
+    }
+    return response('success', 'User Updated');
+}
 
-    // --- APPROVAL NOTIFICATION ---
-    if (payload.Status === 'Active') {
-        const mobileCol = colMap['Mobile'];
-        let userMobile = '';
-        if (mobileCol) {
-            userMobile = sheet.getRange(rowIndex, mobileCol).getValue();
-        }
+function updateComplaintStatus(payload) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('data');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colMap = getColMap(headers);
+    if (!colMap.ID) return response('error', 'ID column not found');
 
-        if (userMobile) {
-            sendAccountApprovalNotification(payload.Username, userMobile);
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+        if (data[i][colMap.ID - 1] == payload.ID) {
+            rowIndex = i + 1;
+            break;
         }
     }
+    if (rowIndex === -1) return response('error', 'Complaint not found');
 
-    return response('success', 'User Updated');
+    const fields = {
+        'Status': payload.Status,
+        'ResolvedBy': payload.ResolvedBy,
+        'Remark': payload.Remark
+    };
+
+    Object.keys(fields).forEach(f => {
+        if (colMap[f]) sheet.getRange(rowIndex, colMap[f]).setValue(fields[f]);
+    });
+
+    if (payload.Status === 'Resolved' || payload.Status === 'Closed') {
+        const reportedBy = colMap.ReportedBy ? data[rowIndex - 1][colMap.ReportedBy - 1] : '';
+        sendComplaintResolutionNotification(reportedBy, payload.ID, payload.Status, payload.Remark);
+    }
+    return response('success', 'Status Updated');
 }
 
 function deleteUser(payload) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('master');
     const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const usernameCol = headers.indexOf('Username');
-
-    if (usernameCol === -1) return response('error', 'Username column missing');
+    const usernameCol = data[0].indexOf('Username');
 
     for (let i = 1; i < data.length; i++) {
-        const rowUser = String(data[i][usernameCol]).trim();
-        const searchUser = String(payload.Username).trim();
-
-        if (rowUser === searchUser) {
+        if (String(data[i][usernameCol]).trim().toLowerCase() === String(payload.Username).trim().toLowerCase()) {
             sheet.deleteRow(i + 1);
             return response('success', 'User Deleted');
         }
     }
     return response('error', 'User not found');
 }
-
-// --- NOTIFICATION HELPERS ---
-
-function sendAccountApprovalNotification(username, mobile) {
-    const msg = `Welcome to SBH Group of Hospitals! 🏥\n\nYour account has been successfully APPROVED by the Admin. ✅\n\nYou can now login to the CMS portal using your credentials.\nUsername: ${username}\n\n- SBH IT Team`;
-    sendWhatsApp(mobile, msg);
-}
-
 
 // --- WhatsApp Notification Logic ---
 const API_USERNAME = "SBH HOSPITAL";
@@ -241,7 +220,6 @@ function sendWhatsApp(number, message) {
     if (!number) return;
     try {
         let formattedNumber = String(number).trim().replace(/\D/g, '');
-
         const params = {
             'username': API_USERNAME,
             'password': API_PASS,
@@ -249,19 +227,19 @@ function sendWhatsApp(number, message) {
             'receiverName': 'SBH User',
             'message': message
         };
-
         const queryString = Object.keys(params).map(key => key + '=' + encodeURIComponent(params[key])).join('&');
         const url = BASE_URL + "?" + queryString;
-
-        const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-        Logger.log("WhatsApp Response (" + formattedNumber + "): " + resp.getContentText());
+        UrlFetchApp.fetch(url, { muteHttpExceptions: true });
     } catch (e) {
-        Logger.log("WhatsApp Error (" + number + "): " + e.toString());
+        Logger.log("Error: " + e.toString());
     }
 }
 
-function testWhatsAppConnection() {
-    sendWhatsApp("9876543210", "Test Message from SBH CMS");
+// --- PREMIUM TEMPLATES ---
+
+function sendAccountApprovalNotification(username, mobile) {
+    const msg = `Welcome to SBH Group of Hospitals! 🏥✨\n\nYour account has been successfully APPROVED by the Admin. ✅\n\nYou can now login to the CMS portal and start using the system.\n\n👤 Username: ${username}\n\nWe are glad to have you on board! 🙏\n- SBH IT Team`;
+    sendWhatsApp(mobile, msg);
 }
 
 function sendNewComplaintNotifications(department, complaintId, reportedByUser, description) {
@@ -273,60 +251,37 @@ function sendNewComplaintNotifications(department, complaintId, reportedByUser, 
     const colMap = {};
     headers.forEach((h, i) => colMap[h] = i);
 
-    if (colMap['Mobile'] === undefined) {
-        Logger.log("WARNING: 'Mobile' column missing in master sheet. Notifications skipped.");
-        return;
-    }
-
     let userMobile = null;
     const staffMobiles = [];
-
-    const targetDept = String(department).trim().toLowerCase();
-    const reporterName = String(reportedByUser).trim();
+    const targetDept = String(department || '').trim().toLowerCase();
+    const reporterName = String(reportedByUser || '').trim().toLowerCase();
 
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
+        const u = String(row[colMap['Username']] || '').trim().toLowerCase();
+        const dept = String(row[colMap['Department']] || '').trim().toLowerCase();
+        const role = String(row[colMap['Role']] || '').trim().toLowerCase();
+        const status = String(row[colMap['Status']] || '').trim().toLowerCase();
+        const mobile = row[colMap['Mobile']];
 
-        let u = '';
-        if (colMap['Username'] !== undefined) u = String(row[colMap['Username']] || '').trim();
+        if (status !== 'active') continue;
 
-        let dept = '';
-        if (colMap['Department'] !== undefined) dept = String(row[colMap['Department']] || '').trim().toLowerCase();
+        if (u === reporterName) userMobile = mobile;
 
-        let role = '';
-        if (colMap['Role'] !== undefined) role = String(row[colMap['Role']] || '').trim().toLowerCase();
-
-        let status = '';
-        if (colMap['Status'] !== undefined) status = row[colMap['Status']];
-
-        const rawMobile = row[colMap['Mobile']];
-
-        if (!rawMobile) continue;
-
-        const mobile = String(rawMobile).trim();
-
-        if (u === reporterName) {
-            userMobile = mobile;
-        }
-
-        const isDeptMatch = (dept === targetDept);
-        const isManager = (role === 'manager');
-        const isAdmin = (role === 'admin');
-
-        if ((isDeptMatch && isManager && status === 'Active') || (isAdmin && status === 'Active')) {
+        // Notify anyone in the target department OR any admin
+        if (dept === targetDept || role === 'admin') {
             staffMobiles.push(mobile);
         }
     }
 
     if (userMobile) {
-        const msg = `Hello ${reportedByUser}, Your complaint (ID: ${complaintId}) regarding ${department} has been registered successfully.\n\nDescription: ${description}\n\n- SBH Group Of Hospitals`;
+        const msg = `Hello ${reportedByUser}! 👋 Your complaint has been registered successfully. 🏢\n\n🎫 Ticket ID: ${complaintId}\n📂 Dept: ${department}\n📝 Description: ${description}\n\nOur team is working on it. Thank you for your patience! 🙏\n- SBH Group Of Hospitals`;
         sendWhatsApp(userMobile, msg);
     }
 
-    const uniqueStaff = [...new Set(staffMobiles)];
-    uniqueStaff.forEach(mob => {
-        if (String(mob) !== String(userMobile)) {
-            const msg = `🚨 NEW COMPLAINT\nID: ${complaintId}\nDept: ${department}\nFrom: ${reportedByUser}\n\n"${description}"\n\nPlease resolve ASAP.\n- SBH Admin System`;
+    [...new Set(staffMobiles)].forEach(mob => {
+        if (mob != userMobile && mob) {
+            const msg = `🚨 NEW COMPLAINT ALERT 🚨\n\n🎫 ID: ${complaintId}\n🏢 Dept: ${department}\n👤 From: ${reportedByUser}\n📝 Issue: "${description}"\n\nPlease check the CMS and resolve at the earliest. ⏳\n- SBH Admin System`;
             sendWhatsApp(mob, msg);
             Utilities.sleep(1000);
         }
@@ -341,18 +296,19 @@ function sendResolutionNotification(complaintId, reportedByUser, status, resolve
     const usernameCol = headers.indexOf('Username');
     const mobileCol = headers.indexOf('Mobile');
 
-    if (usernameCol === -1 || mobileCol === -1) return;
-
     let userMobile = null;
+    const searchName = String(reportedByUser || '').trim().toLowerCase();
+
     for (let i = 1; i < data.length; i++) {
-        if (String(data[i][usernameCol]) === reportedByUser) {
+        const rowUser = String(data[i][usernameCol] || '').trim().toLowerCase();
+        if (rowUser === searchName) {
             userMobile = data[i][mobileCol];
             break;
         }
     }
 
     if (userMobile) {
-        const msg = `Hello ${reportedByUser}, Your complaint (ID: ${complaintId}) has been ${status} by ${resolvedBy}.\nRemark: ${remark || 'No remark'}\n- SBH Hospital`;
+        const msg = `Hello ${reportedByUser}! ✅ Your complaint has been updated.\n\n🎫 Ticket ID: ${complaintId}\n📊 Status: ${status}\n👤 Resolved By: ${resolvedBy}\n📝 Remark: ${remark || 'N/A'}\n\nThank you for bringing this to our attention! 🙏\n- SBH Hospital`;
         sendWhatsApp(userMobile, msg);
     }
 }

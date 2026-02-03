@@ -5,7 +5,7 @@ import axios from 'axios';
 // 1. Go to Google Apps Script -> Deploy -> Manage Deployments
 // 2. Copy the 'Web App URL'
 // 3. Paste it below:
-const API_URL = 'https://script.google.com/macros/s/AKfycbzfL0B9lHgrn1fwntf2AYvaLOS3JlRSMMCWHerRBTYX3lSe7O-nKaEIryslISI6FTzV/exec';
+const API_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
 
 // --- MOCK DATA FALLBACK ---
 const MOCK_USERS = [
@@ -128,7 +128,7 @@ export const sheetsService = {
 
     createComplaint: async (complaint) => {
         const payload = {
-            ID: Date.now().toString(),
+            // ID: Generated on Server (GAS)
             Date: new Date().toISOString(),
             Department: complaint.department,
             Description: complaint.description,
@@ -149,10 +149,11 @@ export const sheetsService = {
 
     registerUser: async (user) => {
         const payload = {
-            Username: user.username,
-            Password: user.password,
-            Department: user.department || '',
-            Mobile: user.mobile || ''
+            Username: user.Username || user.username,
+            Password: user.Password || user.password,
+            Department: user.Department || user.department || '',
+            Mobile: user.Mobile || user.mobile || '',
+            Role: user.Role || user.role || 'user'
         };
         return sendToSheet('registerUser', payload);
     },

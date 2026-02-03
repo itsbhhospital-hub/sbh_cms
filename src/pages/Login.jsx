@@ -5,10 +5,13 @@ import { Lock, User, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 
+import sbhBg from '../assets/sbh.png';
+
 const Login = () => {
     const [formData, setFormData] = useState({ username: '', password: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showTerminated, setShowTerminated] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
@@ -20,17 +23,25 @@ const Login = () => {
             await login(formData.username, formData.password);
             navigate('/');
         } catch (err) {
-            setError(err.message || 'Failed to login');
+            if (err.message.includes('TERMINATED:')) {
+                setShowTerminated(true);
+            } else {
+                setError(err.message || 'Failed to login');
+            }
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#F3F4F6]">
-            {/* Subtle Professional Background */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-600 to-transparent opacity-10"></div>
-                <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-emerald-500/5 rounded-full blur-3xl"></div>
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-900/20">
+            {/* Blurred Background Image */}
+            <div className="absolute inset-0 z-0 overflow-hidden">
+                <img
+                    src={sbhBg}
+                    alt="Background"
+                    className="w-full h-full object-cover blur-md scale-105 opacity-60 pointer-events-none"
+                />
+                <div className="absolute inset-0 bg-black/10"></div> {/* Overlay for contrast */}
             </div>
 
             <motion.div
@@ -127,9 +138,40 @@ const Login = () => {
 
             </motion.div>
 
+            {/* Terminated Popup */}
+            {showTerminated && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-[2rem] p-10 max-w-sm w-full text-center shadow-2xl relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-red-50 to-transparent -z-10"></div>
+
+                        <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-200">
+                            <Lock className="text-red-600" size={48} />
+                        </div>
+
+                        <h3 className="text-3xl font-black text-slate-800 mb-2">ACCESS DENIED</h3>
+                        <p className="text-red-600 font-black text-xs uppercase tracking-[0.2em] mb-4">Account Terminated</p>
+
+                        <p className="text-slate-500 mb-8 font-medium leading-relaxed">
+                            Your account has been rejected or terminated by the administrator. Please contact the IT department for further assistance.
+                        </p>
+
+                        <button
+                            onClick={() => setShowTerminated(false)}
+                            className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-black transition-all active:scale-[0.98]"
+                        >
+                            Understood
+                        </button>
+                    </motion.div>
+                </div>
+            )}
+
             {/* Simple Footer Link/Copyright */}
             <div className="absolute bottom-4 text-center w-full">
-                <Footer compact={true} />
+                <Footer />
             </div>
         </div>
     );

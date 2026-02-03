@@ -41,34 +41,64 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            // In a real app, successful login returns a token. 
-            // Here we fetch all users and find a match (Security Warning: Logic is Client Side)
-            // optimized to use cache (false) unless explicitly needed
             const users = await sheetsService.getUsers();
 
-            // Fallback: Hardcoded Admin for immediate access if sheet is empty or failing
+            const safeGet = (obj, key) => {
+                if (!obj) return '';
+                const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const target = norm(key);
+                if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+                const foundKey = Object.keys(obj).find(k => norm(k) === target);
+                if (foundKey) return obj[foundKey];
+
+                if (target === 'mobile' || target === 'phone') {
+                    const mKey = Object.keys(obj).find(k => norm(k).includes('mobile') || norm(k).includes('phone'));
+                    if (mKey) return obj[mKey];
+                }
+                if (target === 'department' || target === 'dept') {
+                    const dKey = Object.keys(obj).find(k => norm(k).includes('department') || norm(k).includes('dept'));
+                    if (dKey) return obj[dKey];
+                }
+                return '';
+            };
+
+            // Fallback: Hardcoded Admin
             if (username === 'admin' && password === 'admin123') {
                 const adminUser = { Username: 'admin', Role: 'admin', Department: 'ADMIN', Status: 'Active' };
                 setUser(adminUser);
                 localStorage.setItem('sbh_user', JSON.stringify(adminUser));
-                localStorage.setItem('sbh_login_time', Date.now().toString()); // Set Session Start
+                localStorage.setItem('sbh_login_time', Date.now().toString());
                 return adminUser;
             }
 
-            const foundUser = users.find(u => u.Username === username && u.Password === password);
+            const foundUser = users.find(u =>
+                safeGet(u, 'Username') === username &&
+                String(safeGet(u, 'Password')) === String(password)
+            );
 
-            if (!foundUser) {
-                throw new Error('Invalid credentials');
+            if (!foundUser) throw new Error('Invalid credentials');
+
+            const userStatus = safeGet(foundUser, 'Status');
+            if (userStatus === 'Terminated' || userStatus === 'Rejected') {
+                throw new Error('TERMINATED: Your account has been rejected or terminated by the administrator.');
             }
-
-            if (foundUser.Status !== 'Active') {
+            if (userStatus !== 'Active') {
                 throw new Error('Account is pending approval or inactive');
             }
 
-            setUser(foundUser);
-            localStorage.setItem('sbh_user', JSON.stringify(foundUser));
-            localStorage.setItem('sbh_login_time', Date.now().toString()); // Set Session Start
-            return foundUser;
+            // Map user data robustly before saving to session
+            const userSession = {
+                Username: safeGet(foundUser, 'Username'),
+                Role: safeGet(foundUser, 'Role'),
+                Department: safeGet(foundUser, 'Department'),
+                Status: safeGet(foundUser, 'Status'),
+                Mobile: safeGet(foundUser, 'Mobile')
+            };
+
+            setUser(userSession);
+            localStorage.setItem('sbh_user', JSON.stringify(userSession));
+            localStorage.setItem('sbh_login_time', Date.now().toString());
+            return userSession;
         } catch (error) {
             console.error(error);
             throw error;

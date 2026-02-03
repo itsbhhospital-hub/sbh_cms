@@ -22,12 +22,42 @@ const AdminUserPanel = () => {
         }
     };
 
-    const updateUserRole = async (username, newRole, newStatus) => {
+    const safeGet = (obj, key) => {
+        if (!obj) return '';
+        const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const target = norm(key);
+        if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+        const foundKey = Object.keys(obj).find(k => norm(k) === target);
+        if (foundKey) return obj[foundKey];
+
+        if (target === 'mobile' || target === 'phone') {
+            const mKey = Object.keys(obj).find(k => norm(k).includes('mobile') || norm(k).includes('phone'));
+            if (mKey) return obj[mKey];
+        }
+        if (target === 'department' || target === 'dept') {
+            const dKey = Object.keys(obj).find(k => norm(k).includes('department') || norm(k).includes('dept'));
+            if (dKey) return obj[dKey];
+        }
+        return '';
+    };
+
+    const updateUserRole = async (targetUser, newRole, newStatus) => {
+        const username = safeGet(targetUser, 'Username');
         try {
-            await sheetsService.updateUser({ Username: username, Role: newRole, Status: newStatus });
+            const fullPayload = {
+                OldUsername: username,
+                Username: username,
+                Password: safeGet(targetUser, 'Password'),
+                Department: safeGet(targetUser, 'Department'),
+                Mobile: safeGet(targetUser, 'Mobile'),
+                Role: newRole,
+                Status: newStatus
+            };
+
+            await sheetsService.updateUser(fullPayload);
 
             setUsers(users.map(u =>
-                u.Username === username ? { ...u, Role: newRole, Status: newStatus } : u
+                safeGet(u, 'Username') === username ? { ...u, Role: newRole, Status: newStatus } : u
             ));
         } catch (error) {
             console.error("Failed to update user", error);
@@ -61,55 +91,62 @@ const AdminUserPanel = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                        {users.map((user, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
-                                <td className="p-4 font-bold text-slate-700 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600 flex items-center justify-center text-xs font-bold ring-2 ring-white">
-                                        {user.Username.charAt(0).toUpperCase()}
-                                    </div>
-                                    {user.Username}
-                                </td>
-                                <td className="p-4 text-slate-500 font-medium text-sm">{user.Department}</td>
-                                <td className="p-4">
-                                    <span className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${user.Role === 'admin' ? 'bg-purple-50 text-purple-600 ring-1 ring-purple-500/10' :
-                                            user.Role === 'manager' ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-500/10' :
+                        {users.map((user, idx) => {
+                            const uName = safeGet(user, 'Username');
+                            const uDept = safeGet(user, 'Department');
+                            const uRole = safeGet(user, 'Role');
+                            const uStatus = safeGet(user, 'Status');
+
+                            return (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="p-4 font-bold text-slate-700 flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600 flex items-center justify-center text-xs font-bold ring-2 ring-white">
+                                            {uName[0]?.toUpperCase() || '?'}
+                                        </div>
+                                        {uName}
+                                    </td>
+                                    <td className="p-4 text-slate-500 font-medium text-sm">{uDept}</td>
+                                    <td className="p-4">
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${uRole === 'admin' ? 'bg-purple-50 text-purple-600 ring-1 ring-purple-500/10' :
+                                            uRole === 'manager' ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-500/10' :
                                                 'bg-slate-100 text-slate-500 ring-1 ring-slate-500/10'
-                                        }`}>
-                                        {user.Role}
-                                    </span>
-                                </td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit ${user.Status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
-                                        }`}>
-                                        <div className={`w-1.5 h-1.5 rounded-full ${user.Status === 'Active' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
-                                        {user.Status}
-                                    </span>
-                                </td>
-                                <td className="p-4 flex items-center gap-3">
-                                    {user.Status !== 'Active' && (
-                                        <button
-                                            onClick={() => updateUserRole(user.Username, user.Role, 'Active')}
-                                            className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl shadow-lg shadow-green-200 hover:scale-105 active:scale-95 transition-all"
-                                            title="Approve User"
-                                        >
-                                            <Check size={16} />
-                                        </button>
-                                    )}
-                                    <div className="relative">
-                                        <select
-                                            className="text-xs font-bold border border-slate-200 rounded-lg py-2 pl-3 pr-8 bg-white text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none appearance-none cursor-pointer hover:border-indigo-300 transition-colors"
-                                            value={user.Role}
-                                            onChange={(e) => updateUserRole(user.Username, e.target.value, 'Active')}
-                                        >
-                                            <option value="user">User</option>
-                                            <option value="manager">Manager</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
-                                        <div className="absolute right-2.5 top-2.5 pointer-events-none text-slate-400">▼</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                                            }`}>
+                                            {uRole}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit ${uStatus === 'Active' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                                            }`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${uStatus === 'Active' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+                                            {uStatus}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 flex items-center gap-3">
+                                        {uStatus !== 'Active' && (
+                                            <button
+                                                onClick={() => updateUserRole(user, uRole, 'Active')}
+                                                className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl shadow-lg shadow-green-200 hover:scale-105 active:scale-95 transition-all"
+                                                title="Approve User"
+                                            >
+                                                <Check size={16} />
+                                            </button>
+                                        )}
+                                        <div className="relative">
+                                            <select
+                                                className="text-xs font-bold border border-slate-200 rounded-lg py-2 pl-3 pr-8 bg-white text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none appearance-none cursor-pointer hover:border-indigo-300 transition-colors"
+                                                value={uRole}
+                                                onChange={(e) => updateUserRole(user, e.target.value, uStatus)}
+                                            >
+                                                <option value="user">User</option>
+                                                <option value="manager">Manager</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                            <div className="absolute right-2.5 top-2.5 pointer-events-none text-slate-400">▼</div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

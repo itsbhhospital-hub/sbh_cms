@@ -1,31 +1,328 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { User, LogOut, Key, Shield, Building2, Phone, X, Check, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, User } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { sheetsService } from '../services/googleSheets';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
+    const [isOpen, setIsOpen] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Timer State
+    const [timeLeft, setTimeLeft] = useState('');
+    const [timerStatus, setTimerStatus] = useState('normal');
+
+    // Password Change State
+    const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
+    const [showPass, setShowPass] = useState(false);
+    const [isChanging, setIsChanging] = useState(false);
+    const [passError, setPassError] = useState('');
+    const [passSuccess, setPassSuccess] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Timer Logic
+    useEffect(() => {
+        if (!user) return;
+        const updateTimer = () => {
+            const loginTime = localStorage.getItem('sbh_login_time');
+            if (!loginTime) return;
+            const elapsed = Date.now() - parseInt(loginTime);
+            const remaining = 3600000 - elapsed; // 1 Hour
+
+            if (remaining <= 0) {
+                setTimeLeft("00:00");
+                // Optional: Force logout
+            } else {
+                const m = Math.floor(remaining / 60000);
+                const s = Math.floor((remaining % 60000) / 1000);
+                setTimeLeft(`${m}m ${s}s`);
+
+                if (remaining < 60000) setTimerStatus('critical');
+                else if (remaining < 300000) setTimerStatus('warning');
+                else setTimerStatus('normal');
+            }
+        };
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [user]);
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setPassError('');
+
+        if (passForm.current !== user.Password) {
+            setPassError('Current password is incorrect');
+            return;
+        }
+        if (passForm.new.length < 4) {
+            setPassError('New password must be at least 4 characters');
+            return;
+        }
+        if (passForm.new !== passForm.confirm) {
+            setPassError('New passwords do not match');
+            return;
+        }
+
+        setIsChanging(true);
+        try {
+            await sheetsService.updateUser({
+                OldUsername: user.Username,
+                Username: user.Username,
+                Password: passForm.new
+            });
+            setPassSuccess(true);
+            setTimeout(() => {
+                setShowPasswordModal(false);
+                setPassSuccess(false);
+                setPassForm({ current: '', new: '', confirm: '' });
+                logout(); // Logout after password change for security
+            }, 2000);
+        } catch (err) {
+            setPassError('Failed to update password. Try again.');
+        } finally {
+            setIsChanging(false);
+        }
+    };
+
+    if (!user) return null;
 
     return (
-        <nav className="glass-panel mx-4 mt-4 px-6 py-3 flex justify-between items-center sticky top-4 z-50">
-            <div className="flex items-center gap-3">
-                <img src="/src/assets/logo.jpg" alt="SBH Logo" className="h-10 w-10 rounded-full object-cover" />
-                <span className="text-xl font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
-                    SBH CMS
-                </span>
+        <nav className="sticky top-0 z-[100] w-full px-4 py-3">
+            <div className="max-w-7xl mx-auto flex justify-end items-center gap-4">
+
+                {/* Session Timer Display */}
+                <div className={`
+                    hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border backdrop-blur-md transition-all duration-300
+                    ${timerStatus === 'critical' ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' :
+                        timerStatus === 'warning' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                            'bg-white/60 text-slate-500 border-emerald-50'}
+                `}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Session</p>
+                    <p className={`font-mono font-semibold text-sm ${timerStatus === 'critical' ? 'text-red-600' : 'text-slate-700'}`}>
+                        {timeLeft}
+                    </p>
+                </div>
+
+                <div className="relative" ref={dropdownRef}>
+                    {/* User Profile Button */}
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="flex items-center gap-3 bg-white/70 backdrop-blur-xl border border-emerald-100 px-4 py-2 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-95 group"
+                    >
+                        <div className="flex flex-col items-end hidden sm:flex text-right">
+                            <span className="text-sm font-bold text-slate-800 mb-1 capitalize">
+                                {user.Username}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide leading-none">
+                                {user.Role}
+                            </span>
+                        </div>
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200/50 group-hover:rotate-6 transition-transform">
+                            <User size={20} strokeWidth={2.5} />
+                        </div>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    <AnimatePresence>
+                        {isOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="absolute right-0 mt-3 w-64 bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-100 p-3 overflow-hidden"
+                            >
+                                <div className="space-y-1">
+                                    <button
+                                        onClick={() => { setShowProfile(true); setIsOpen(false); }}
+                                        className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition-all group/item"
+                                    >
+                                        <div className="bg-slate-100 group-hover/item:bg-emerald-100 p-2 rounded-xl transition-colors">
+                                            <Shield size={18} />
+                                        </div>
+                                        <span className="font-bold text-sm">View Profile</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => { setShowPasswordModal(true); setIsOpen(false); }}
+                                        className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 transition-all group/item"
+                                    >
+                                        <div className="bg-slate-100 group-hover/item:bg-indigo-100 p-2 rounded-xl transition-colors">
+                                            <Key size={18} />
+                                        </div>
+                                        <span className="font-bold text-sm">Change Password</span>
+                                    </button>
+
+                                    <div className="h-px bg-slate-100 my-2 mx-2"></div>
+
+                                    <button
+                                        onClick={logout}
+                                        className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-all group/item"
+                                    >
+                                        <div className="bg-rose-50 group-hover/item:bg-rose-100 p-2 rounded-xl transition-colors">
+                                            <LogOut size={18} />
+                                        </div>
+                                        <span className="font-bold text-sm">Logout</span>
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-600 bg-white/50 px-3 py-1.5 rounded-full">
-                    <User size={16} />
-                    <span>{user?.Username} ({user?.Role})</span>
-                </div>
-                <button
-                    onClick={logout}
-                    className="p-2 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-full transition-colors"
-                    title="Logout"
-                >
-                    <LogOut size={20} />
-                </button>
-            </div>
+            {/* Profile Modal */}
+            <AnimatePresence>
+                {showProfile && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden border border-emerald-50 shadow-2xl"
+                        >
+                            <button onClick={() => setShowProfile(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all">
+                                <X size={20} />
+                            </button>
+
+                            <div className="w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-emerald-200">
+                                <User size={40} strokeWidth={2} />
+                            </div>
+
+                            <h3 className="text-2xl font-black text-slate-800 text-center mb-1 capitalize">{user.Username}</h3>
+                            <p className="text-emerald-600 font-bold text-[10px] text-center uppercase tracking-widest mb-8">System Profile</p>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                    <Building2 className="text-slate-400" size={20} />
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Department</p>
+                                        <p className="text-slate-800 font-bold">{user.Department || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                    <Phone className="text-slate-400" size={20} />
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Mobile</p>
+                                        <p className="text-slate-800 font-bold">{user.Mobile || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                    <Shield className="text-slate-400" size={20} />
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">System Role</p>
+                                        <p className="text-emerald-700 font-black uppercase text-xs tracking-widest">{user.Role}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Change Password Modal */}
+            <AnimatePresence>
+                {showPasswordModal && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden shadow-2xl"
+                        >
+                            {!passSuccess ? (
+                                <>
+                                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                        <Key size={28} />
+                                    </div>
+
+                                    <h3 className="text-2xl font-black text-slate-800 text-center mb-1">Pass Management</h3>
+                                    <p className="text-indigo-600 font-bold text-[10px] text-center uppercase tracking-widest mb-8">Security Update</p>
+
+                                    <form onSubmit={handleChangePassword} className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Current Password</label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showPass ? "text" : "password"}
+                                                    required
+                                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold transition-all"
+                                                    value={passForm.current}
+                                                    onChange={e => setPassForm({ ...passForm, current: e.target.value })}
+                                                />
+                                                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-4 text-slate-400">
+                                                    {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">New Password</label>
+                                            <input
+                                                type="password"
+                                                required
+                                                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold"
+                                                value={passForm.new}
+                                                onChange={e => setPassForm({ ...passForm, new: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Confirm New Password</label>
+                                            <input
+                                                type="password"
+                                                required
+                                                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 font-bold"
+                                                value={passForm.confirm}
+                                                onChange={e => setPassForm({ ...passForm, confirm: e.target.value })}
+                                            />
+                                        </div>
+
+                                        {passError && <p className="text-rose-500 text-xs font-bold text-center">{passError}</p>}
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowPasswordModal(false); setPassError(''); }}
+                                                className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isChanging}
+                                                className="flex-2 px-8 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
+                                            >
+                                                {isChanging ? 'Updating...' : 'Update'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </>
+                            ) : (
+                                <div className="py-10 text-center animate-in zoom-in duration-300">
+                                    <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Check size={40} strokeWidth={3} />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-800 mb-2">Password Updated!</h3>
+                                    <p className="text-slate-500 font-medium">System security reinforced.<br />Logging out for safety...</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </nav>
     );
 };

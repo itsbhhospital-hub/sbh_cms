@@ -59,7 +59,9 @@ const ComplaintForm = ({ onComplaintCreated }) => {
             });
 
             // Show Success Modal with ID
-            setSuccessId(result.id || 'Pending');
+            // result = { status: 'success', data: { id: 'SBH...' } }
+            const ticketId = result.data?.id || result.id || 'Pending';
+            setSuccessId(ticketId);
             setShowSuccess(true);
 
             setDepartment('');

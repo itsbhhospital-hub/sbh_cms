@@ -5,12 +5,14 @@ import { Lock, User, Building, Phone, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Footer from '../components/Footer';
 import { sheetsService } from '../services/googleSheets';
+import sbhBg from '../assets/sbh.png';
 
 
 const Signup = () => {
     const [formData, setFormData] = useState({ username: '', password: '', department: '', mobile: '' });
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
+    const [showDuplicate, setShowDuplicate] = useState(null); // { type: 'username' | 'mobile' }
     const { signup } = useAuth();
     const navigate = useNavigate();
 
@@ -23,30 +25,36 @@ const Signup = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            // 1. Fetch existing users to check for duplicates
-            const existingUsers = await sheetsService.getUsers();
+            const users = await sheetsService.getUsers();
 
-            // 2. Normalize inputs for comparison
+            const safeGet = (obj, key) => {
+                const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const target = norm(key);
+                const foundKey = Object.keys(obj).find(k => norm(k) === target);
+                return foundKey ? obj[foundKey] : '';
+            };
+
             const newUsername = formData.username.trim().toLowerCase();
             const newMobile = formData.mobile.trim();
 
-            // 3. Check for Duplicates
-            const duplicateUser = existingUsers.find(u => u.Username.toLowerCase() === newUsername);
-            const duplicateMobile = existingUsers.find(u => u.Mobile && u.Mobile.toString() === newMobile);
+            const duplicateUser = users.find(u => safeGet(u, 'Username').toLowerCase() === newUsername);
+            const duplicateMobile = users.find(u => {
+                const m = safeGet(u, 'Mobile');
+                return m && String(m) === newMobile;
+            });
 
             if (duplicateUser) {
-                alert("Username is already taken. Please choose another.");
+                setShowDuplicate('username');
                 setIsLoading(false);
                 return;
             }
 
             if (duplicateMobile) {
-                alert("This mobile number is already registered.");
+                setShowDuplicate('mobile');
                 setIsLoading(false);
                 return;
             }
 
-            // 4. Proceed if unique
             await signup(formData);
             setShowModal(true);
             setFormData({ username: '', password: '', department: '', mobile: '' });
@@ -60,11 +68,15 @@ const Signup = () => {
 
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#F3F4F6]">
-            {/* Subtle Professional Background */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-emerald-600 to-transparent opacity-[0.03]"></div>
-                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl"></div>
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-900/20">
+            {/* Blurred Background Image */}
+            <div className="absolute inset-0 z-0 overflow-hidden">
+                <img
+                    src={sbhBg}
+                    alt="Background"
+                    className="w-full h-full object-cover blur-md scale-105 opacity-60 pointer-events-none"
+                />
+                <div className="absolute inset-0 bg-black/10"></div> {/* Overlay for contrast */}
             </div>
 
             <motion.div
@@ -184,31 +196,81 @@ const Signup = () => {
             </motion.div>
 
 
+            {/* Duplicate User Modal */}
+            {showDuplicate && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full text-center shadow-[0_20px_70px_-15px_rgba(16,185,129,0.3)] border border-emerald-50 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-50 to-transparent -z-10"></div>
+
+                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200/50">
+                            <User className="text-emerald-600" size={32} />
+                        </div>
+
+                        <h3 className="text-2xl font-black text-slate-800 mb-2">Account Exists</h3>
+                        <p className="text-emerald-600 font-bold text-[10px] uppercase tracking-widest mb-4">Registration Conflict</p>
+
+                        <p className="text-slate-500 mb-8 font-medium leading-relaxed">
+                            {showDuplicate === 'username'
+                                ? "This username is already taken. Please try to login or use a different name."
+                                : "This mobile number is already registered. Please check again or contact support."}
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => setShowDuplicate(null)}
+                                className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                            >
+                                Fix Details
+                            </button>
+                            <Link
+                                to="/login"
+                                className="text-emerald-600 font-bold text-sm hover:underline"
+                            >
+                                Go to Login
+                            </Link>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
             {/* Success Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
-                            <span className="text-3xl">✓</span>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-[0_20px_70px_-15px_rgba(16,185,129,0.3)] text-center border border-emerald-50 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-50 to-transparent -z-10"></div>
+
+                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200/50">
+                            <span className="text-3xl text-emerald-600">✓</span>
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">Registration Successful</h3>
-                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+
+                        <h3 className="text-2xl font-black text-slate-800 mb-2">Request Sent!</h3>
+                        <p className="text-emerald-600 font-bold text-[10px] uppercase tracking-widest mb-4">Verification Pending</p>
+
+                        <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
                             Your account is pending admin approval.<br />
-                            You will be notified once active.
+                            You can sign in once your access is verified.
                         </p>
                         <Link
                             to="/login"
-                            className="bg-slate-900 hover:bg-black text-white font-bold py-3 px-8 rounded-xl transition-all block w-full text-sm"
+                            className="bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl transition-all block w-full shadow-lg"
                         >
                             Return to Login
                         </Link>
-                    </div>
+                    </motion.div>
                 </div>
             )}
 
             {/* Simple Footer Link/Copyright */}
             <div className="absolute bottom-4 text-center w-full">
-                <Footer compact={true} />
+                <Footer />
             </div>
         </div>
     );
