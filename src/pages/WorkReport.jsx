@@ -128,7 +128,7 @@ const WorkReport = () => {
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-8 -mt-8">
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <p className="text-xs font-bold text-slate-400 uppercase">Resolved</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase">Closed</p>
                             <p className="text-3xl font-black text-emerald-600 mt-1">{selectedUser.stats.resolved}</p>
                         </div>
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
@@ -181,8 +181,8 @@ const WorkReport = () => {
                                                     </td>
                                                     <td className="p-4 font-medium text-slate-800 max-w-xs truncate">{safeGet(c, 'Description')}</td>
                                                     <td className="p-4">
-                                                        <span className={`font-bold ${safeGet(c, 'Status') === 'Solved' ? 'text-emerald-600' :
-                                                                safeGet(c, 'Status') === 'Open' ? 'text-amber-600' : 'text-slate-400'
+                                                        <span className={`font-bold ${safeGet(c, 'Status') === 'Closed' || safeGet(c, 'Status') === 'Solved' ? 'text-emerald-600' :
+                                                            safeGet(c, 'Status') === 'Open' ? 'text-amber-600' : 'text-slate-400'
                                                             }`}>{safeGet(c, 'Status')}</span>
                                                     </td>
                                                     <td className="p-4 text-center font-bold text-amber-500">
@@ -242,7 +242,7 @@ const WorkReport = () => {
 
                                 <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
                                     <div className="text-center">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Solved</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Closed</p>
                                         <p className="font-black text-slate-800">{u.stats.resolved}</p>
                                     </div>
                                     <div className="text-center border-l border-slate-100">

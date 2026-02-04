@@ -80,10 +80,10 @@ const Navbar = () => {
                     // 1. "My Ticket" Updates (Reported By Me) - Show Status Changes (Solved/Closed)
                     const myReports = data.filter(c =>
                         (safeGet(c, 'ReportedBy') || '').toLowerCase() === username &&
-                        (safeGet(c, 'Status') === 'Solved' || safeGet(c, 'Status') === 'Resolved' || safeGet(c, 'Status') === 'Closed')
+                        (safeGet(c, 'Status') === 'Solved' || safeGet(c, 'Status') === 'Closed')
                     ).map(t => ({
                         id: safeGet(t, 'ID'),
-                        type: safeGet(t, 'Status') === 'Solved' ? 'success' : 'info',
+                        type: safeGet(t, 'Status') === 'Closed' || safeGet(t, 'Status') === 'Solved' ? 'success' : 'info',
                         msg: `Your Ticket #${safeGet(t, 'ID')} is ${safeGet(t, 'Status')}`,
                         time: safeGet(t, 'Resolved Date') || safeGet(t, 'Date')
                     }));

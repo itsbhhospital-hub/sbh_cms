@@ -296,8 +296,10 @@ function updateComplaintStatus(payload) {
         // Update STATUS
         if (colMap.Status && payload.Status) sheet.getRange(rowIndex, colMap.Status).setValue(payload.Status);
 
-        // Update RESOLVER (Always update to the person performing the action)
-        if (colMap.ResolvedBy) {
+        // Update RESOLVER (Only if first time closing or staff update)
+        // If Status is already 'Closed', skip updating 'ResolvedBy' to prevent user overwrite.
+        const currentStatus = (rowIndex > 1 && colMap.Status) ? data[rowIndex - 1][colMap.Status - 1] : '';
+        if (colMap.ResolvedBy && currentStatus !== 'Closed') {
             sheet.getRange(rowIndex, colMap.ResolvedBy).setValue(actionBy);
         }
 
@@ -318,7 +320,7 @@ function updateComplaintStatus(payload) {
                 ID: payload.ID,
                 Rating: payload.Rating,
                 Remark: payload.Remark,
-                ResolvedBy: colMap.ResolvedBy ? data[rowIndex - 1][colMap.ResolvedBy - 1] : '',
+                Resolver: colMap.ResolvedBy ? data[rowIndex - 1][colMap.ResolvedBy - 1] : 'Unknown',
                 Reporter: actionBy
             });
         }
@@ -326,12 +328,9 @@ function updateComplaintStatus(payload) {
         // Combine for History
         actionLog = historyLines.join('\n');
 
-        // Capture Resolved Date
-        if ((payload.Status === 'Resolved' || payload.Status === 'Solved') && colMap['Resolved Date']) {
+        // Capture Resolved Date (Only on first closure)
+        if (payload.Status === 'Closed' && colMap['Resolved Date'] && currentStatus !== 'Closed') {
             sheet.getRange(rowIndex, colMap['Resolved Date']).setValue(timestamp);
-        }
-        else if (payload.Status === 'Closed' && colMap['Resolved Date']) {
-            // Keep existing date logic
         }
     }
 
@@ -510,7 +509,7 @@ function logRating(data) {
     // Create sheet if not exists
     if (!sheet) {
         sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
-        sheet.appendRow(['Date', 'Ticket ID', 'Rating', 'Feedback', 'Rated By', 'Resolver']);
+        sheet.appendRow(['Date', 'Ticket ID', 'Staff Name (Resolver)', 'Reporter Name', 'Rating', 'Feedback']);
         sheet.getRange("A1:F1").setFontWeight("bold").setBackground("#f3f4f6");
     }
 
@@ -519,9 +518,9 @@ function logRating(data) {
     sheet.appendRow([
         timestamp,
         data.ID,
+        data.Resolver,  // Staff who solved it
+        data.Reporter,  // User who rated it
         data.Rating,
-        data.Remark || '',
-        data.Reporter,       // User who rated
-        data.ActualResolver  // Staff who solved
+        data.Remark || ''
     ]);
 }

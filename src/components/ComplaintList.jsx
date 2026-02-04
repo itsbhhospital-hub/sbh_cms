@@ -4,13 +4,36 @@ import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
 import { Clock, CheckCircle, AlertTriangle, Search, Calendar, Hash, X, Building2, User, ArrowRight, RefreshCw, Star, BarChart3, TrendingUp } from 'lucide-react';
 
+const safeGet = (obj, key) => {
+    if (!obj) return '';
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
+    const target = norm(key);
+    if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+
+    const foundKey = Object.keys(obj).find(k => norm(k) === target);
+    if (foundKey) return obj[foundKey];
+
+    // Specific handling for 'ID'
+    if (target === 'id') {
+        const idKey = Object.keys(obj).find(k => {
+            const nk = norm(k);
+            return nk === 'ticketid' || nk === 'complaintid' || nk === 'tid' || (nk.includes('id') && nk.length < 10);
+        });
+        if (idKey) return obj[idKey];
+    }
+    return '';
+};
+
 const PerformanceWidget = ({ complaints, user }) => {
     const stats = useMemo(() => {
         const role = (user?.Role || '').toLowerCase();
         const username = (user?.Username || '').toLowerCase();
 
-        // 1. Calculate MY Stats (as Resolver)
-        const myResolved = complaints.filter(c => (c.ResolvedBy || '').toLowerCase() === username);
+        // 1. Calculate MY Stats (as Resolver) - Only count CLOSED tickets
+        const myResolved = complaints.filter(c =>
+            (c.ResolvedBy || '').toLowerCase() === username &&
+            (safeGet(c, 'Status').toLowerCase() === 'closed' || safeGet(c, 'Status').toLowerCase() === 'solved')
+        );
         const ratedTickets = myResolved.filter(c => c.Rating && c.Rating > 0);
         const totalRating = ratedTickets.reduce((acc, c) => acc + Number(c.Rating), 0);
         const myAvgRating = ratedTickets.length ? (totalRating / ratedTickets.length).toFixed(1) : 'N/A';
@@ -128,27 +151,6 @@ const PerformanceWidget = ({ complaints, user }) => {
 const ComplaintList = ({ onlyMyComplaints = false }) => {
     const { user } = useAuth();
 
-    // Helper
-    const safeGet = (obj, key) => {
-        if (!obj) return '';
-        const norm = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
-        const target = norm(key);
-        if (obj[key] !== undefined && obj[key] !== null) return obj[key];
-
-        const foundKey = Object.keys(obj).find(k => norm(k) === target);
-        if (foundKey) return obj[foundKey];
-
-        // Specific handling for 'ID'
-        if (target === 'id') {
-            const idKey = Object.keys(obj).find(k => {
-                const nk = norm(k);
-                return nk === 'ticketid' || nk === 'complaintid' || nk === 'tid' || (nk.includes('id') && nk.length < 10);
-            });
-            if (idKey) return obj[idKey];
-        }
-        return '';
-    };
-
     const [complaints, setComplaints] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
@@ -216,11 +218,11 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
         setIsSubmitting(true);
         try {
             let newStatus = safeGet(selectedComplaint, 'Status');
-            if (actionMode === 'Resolve') newStatus = 'Solved';
-            if (actionMode === 'Close') newStatus = 'Closed'; // Normal Close
-            if (actionMode === 'Rate') newStatus = 'Closed'; // Rate & Close
+            if (actionMode === 'Resolve' || actionMode === 'Close' || actionMode === 'Rate') {
+                newStatus = 'Closed';
+            }
             if (actionMode === 'Extend') newStatus = 'Extend';
-            if (actionMode === 'Re-open') newStatus = 'Open';
+            // 'Re-open' logic removed as per simplification request
 
             await sheetsService.updateComplaintStatus(ticketId, newStatus, user.Username, remark, targetDate, rating);
             setDetailModalOpen(false);
@@ -263,7 +265,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
     const getStatusBadge = (status) => {
         switch (status) {
             case 'Open': return 'bg-amber-50 text-amber-700 border-amber-200';
-            case 'Solved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            case 'Solved':
             case 'Closed': return 'bg-rose-50 text-rose-700 border-rose-200';
             default: return 'bg-slate-50 text-slate-600 border-slate-200';
         }
@@ -278,7 +280,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
 
                     {/* Filter Tabs */}
                     <div className="flex p-1 bg-slate-100/80 rounded-xl w-full xl:w-auto overflow-x-auto no-scrollbar">
-                        {['All', 'Open', 'Solved', 'Closed'].map(f => (
+                        {['All', 'Open', 'Closed'].map(f => (
                             <button
                                 key={f}
                                 onClick={() => setFilter(f)}
@@ -463,7 +465,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                 {actionMode ? (
                                     <div className="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-lg animate-in slide-in-from-bottom-2">
                                         <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                            {actionMode === 'Rate' ? 'Rate Resolution & Close' : actionMode}
+                                            {actionMode === 'Rate' ? 'Rate Service Quality' : (actionMode === 'Resolve' || actionMode === 'Close') ? 'Close Ticket' : actionMode}
                                         </h4>
 
                                         {actionMode === 'Rate' && (
@@ -506,28 +508,26 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-wrap gap-2">
-                                        {/* Status Actions */}
-                                        {safeGet(selectedComplaint, 'Status') === 'Open' && (
-                                            <>
-                                                <button onClick={() => setActionMode('Resolve')} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:-translate-y-0.5 transition-all">Resolve</button>
-                                                <button onClick={() => setActionMode('Extend')} className="flex-1 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50">Extend</button>
-                                            </>
-                                        )}
+                                        {/* Dept/Admin Action: Close (Only for Dept Staff or Admin) */}
+                                        {safeGet(selectedComplaint, 'Status') === 'Open' &&
+                                            (user.Role === 'admin' || (user.Department || '').toLowerCase() === (safeGet(selectedComplaint, 'Department') || '').toLowerCase()) && (
+                                                <>
+                                                    <button onClick={() => setActionMode('Resolve')} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:-translate-y-0.5 transition-all">Close Ticket</button>
+                                                    <button onClick={() => setActionMode('Extend')} className="flex-1 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50">Extend</button>
+                                                </>
+                                            )}
 
-                                        {safeGet(selectedComplaint, 'Status') === 'Solved' &&
+                                        {/* Reporter Action: Rate (Only if Closed and no rating yet) */}
+                                        {safeGet(selectedComplaint, 'Status') === 'Closed' &&
+                                            !safeGet(selectedComplaint, 'Rating') &&
                                             (safeGet(selectedComplaint, 'ReportedBy') || '').toLowerCase() === (user.Username || '').toLowerCase() && (
                                                 <button onClick={() => setActionMode('Rate')} className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-orange-200 animate-pulse hover:shadow-xl transition-all">
-                                                    Click to Rate & Close
+                                                    Rate This Service
                                                 </button>
                                             )}
 
-                                        {safeGet(selectedComplaint, 'Status') === 'Closed' &&
-                                            canReopen(selectedComplaint) &&
-                                            (safeGet(selectedComplaint, 'ReportedBy') || '').toLowerCase() === (user.Username || '').toLowerCase() && (
-                                                <button onClick={() => setActionMode('Re-open')} className="w-full py-3 bg-slate-100 text-slate-600 font-bold rounded-xl border hover:bg-slate-200">Re-open Ticket</button>
-                                            )}
-
-                                        {user.Role === 'admin' && safeGet(selectedComplaint, 'Status') !== 'Closed' && (
+                                        {/* Force Close Fallback for Admin */}
+                                        {user.Role === 'admin' && safeGet(selectedComplaint, 'Status') === 'Open' && (
                                             <button onClick={() => setActionMode('Close')} className="w-full py-2 text-rose-500 font-bold text-xs hover:bg-rose-50 rounded-lg">Force Close</button>
                                         )}
                                     </div>
