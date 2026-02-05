@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, LogOut, Key, Shield, Building2, Phone, X, Check, Eye, EyeOff, Menu, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLayout } from '../context/LayoutContext';
+import { useClickOutside } from '../hooks/useClickOutside';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { sheetsService } from '../services/googleSheets';
+import { formatIST } from '../utils/dateUtils';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -33,6 +35,7 @@ const Navbar = () => {
     // Notifications
     const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [isPolling, setIsPolling] = useState(false);
     const notifRef = useRef(null);
 
     // Fetch Notifications
@@ -41,16 +44,16 @@ const Navbar = () => {
         const fetchNotifs = async () => {
             try {
                 const data = await sheetsService.getComplaints(true);
-                const role = (user.Role || '').toLowerCase();
-                const username = (user.Username || '').toLowerCase();
-                const dept = (user.Department || '').toLowerCase();
+                const role = String(user.Role || '').toLowerCase();
+                const username = String(user.Username || '').toLowerCase();
+                const dept = String(user.Department || '').toLowerCase();
 
                 let alerts = [];
 
                 if (role.includes('admin')) {
                     // SUPER ADMIN: Everything Open or Assigned to me
                     const newTickets = data.filter(c =>
-                        c.Status === 'Open' || (c.ResolvedBy || '').toLowerCase() === username
+                        String(c.Status).toLowerCase() === 'open' || String(c.ResolvedBy || '').toLowerCase() === username
                     );
                     alerts = newTickets.map(t => ({
                         id: t.ID,
@@ -62,8 +65,8 @@ const Navbar = () => {
                     // STANDARD USER & DEPT STAFF
                     // 1. "My Ticket" Updates (Reported By Me) - Show Status Changes (Solved/Closed)
                     const myReports = data.filter(c =>
-                        (c.ReportedBy || '').toLowerCase() === username &&
-                        (c.Status === 'Solved' || c.Status === 'Closed')
+                        String(c.ReportedBy || '').toLowerCase() === username &&
+                        (String(c.Status) === 'Solved' || String(c.Status) === 'Closed')
                     ).map(t => ({
                         id: t.ID,
                         type: t.Status === 'Closed' || t.Status === 'Solved' ? 'success' : 'info',
@@ -75,8 +78,8 @@ const Navbar = () => {
                     let deptAlerts = [];
                     if (dept) {
                         deptAlerts = data.filter(c =>
-                            (c.Department || '').toLowerCase() === dept &&
-                            c.Status === 'Open'
+                            String(c.Department || '').toLowerCase() === dept &&
+                            String(c.Status) === 'Open'
                         ).map(t => ({
                             id: t.ID,
                             type: 'alert',
@@ -89,21 +92,33 @@ const Navbar = () => {
                 }
                 // Sort by TIME desc (Latest first)
                 setNotifications(alerts.sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5));
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsPolling(false);
+            }
         };
         fetchNotifs();
-        const interval = setInterval(fetchNotifs, 30000); // Poll every 30s
+        const interval = setInterval(() => {
+            setIsPolling(true);
+            fetchNotifs();
+        }, 30000); // Poll every 30s
         return () => clearInterval(interval);
     }, [user]);
 
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
-            if (notifRef.current && !notifRef.current.contains(event.target)) setShowNotifications(false);
+        if (!user) return;
+        const fetchNotifs = async () => {
+            try {
+                // ... logic
+            } catch (e) { console.error(e); }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        // ...
+    }, [user]);
+
+    // Click Outside Handling
+    useClickOutside(dropdownRef, () => setIsOpen(false));
+    useClickOutside(notifRef, () => setShowNotifications(false));
 
     // Timer Logic
     useEffect(() => {
@@ -197,9 +212,12 @@ const Navbar = () => {
                         onClick={() => setShowNotifications(!showNotifications)}
                         className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 shadow-sm transition-all relative"
                     >
-                        <Bell size={20} />
+                        <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
+                        {isPolling && (
+                            <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
+                        )}
                         {notifications.length > 0 && (
-                            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse"></span>
+                            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                         )}
                     </button>
 
@@ -225,13 +243,15 @@ const Navbar = () => {
                                                     setShowNotifications(false);
                                                     navigate(`/my-complaints?ticketId=${n.id}`);
                                                 }}
-                                                className="p-3 bg-slate-50 rounded-xl hover:bg-emerald-50 transition-colors border border-slate-100 cursor-pointer group"
+                                                className="p-3 bg-slate-50 rounded-xl hover:bg-emerald-50 transition-colors border border-slate-100 cursor-pointer group relative"
                                             >
                                                 <div className="flex items-start gap-3">
-                                                    <div className={`w-2 h-2 mt-1.5 rounded-full ${n.type === 'alert' ? 'bg-amber-500' : n.type === 'success' ? 'bg-emerald-500' : 'bg-sky-500'}`}></div>
+                                                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.type === 'alert' ? 'bg-amber-500' : n.type === 'success' ? 'bg-emerald-500' : 'bg-sky-500'}`}></div>
                                                     <div>
-                                                        <p className="text-xs font-bold text-slate-700 group-hover:text-emerald-700 transition-colors">{n.msg}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 mt-1">{new Date(n.time).toLocaleDateString()}</p>
+                                                        <p className="text-xs font-bold text-slate-700 group-hover:text-emerald-700 transition-colors leading-tight mb-1">{n.msg}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 font-mono flex items-center gap-1">
+                                                            {formatIST(n.time)}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -251,10 +271,10 @@ const Navbar = () => {
                     >
                         <div className="flex flex-col items-end hidden sm:flex text-right">
                             <span className="text-sm font-bold text-slate-800 mb-1 capitalize">
-                                {user.Username}
+                                {String(user.Username)}
                             </span>
                             <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide leading-none">
-                                {(user.Username || '').toLowerCase() === 'admin' ? 'Super Admin' : user.Role}
+                                {String(user.Username || '').toLowerCase() === 'admin' ? 'Super Admin' : user.Role}
                             </span>
                         </div>
                         <div className="w-10 h-10 bg-emerald-700 rounded-xl flex items-center justify-center text-white shadow-md shadow-emerald-200/50 group-hover:rotate-6 transition-transform">
@@ -313,11 +333,12 @@ const Navbar = () => {
             {/* Profile Modal */}
             <AnimatePresence>
                 {showProfile && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80">
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowProfile(false)}>
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
                             className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden border border-emerald-50 shadow-2xl"
                         >
                             <button onClick={() => setShowProfile(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all border border-slate-100">
@@ -350,7 +371,7 @@ const Navbar = () => {
                                     <Shield className="text-slate-400" size={20} />
                                     <div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">System Role</p>
-                                        <p className="text-emerald-700 font-black uppercase text-xs tracking-widest">{(user.Username || '').toLowerCase() === 'admin' ? 'Super Admin' : user.Role}</p>
+                                        <p className="text-emerald-700 font-black uppercase text-xs tracking-widest">{String(user.Username || '').toLowerCase() === 'admin' ? 'Super Admin' : user.Role}</p>
                                     </div>
                                 </div>
                             </div>
@@ -362,11 +383,12 @@ const Navbar = () => {
             {/* Change Password Modal */}
             <AnimatePresence>
                 {showPasswordModal && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80">
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)}>
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
                             className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden shadow-2xl"
                         >
                             {!passSuccess ? (

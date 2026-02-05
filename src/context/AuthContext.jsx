@@ -43,15 +43,6 @@ export const AuthProvider = ({ children }) => {
         try {
             const users = await sheetsService.getUsers();
 
-            // Fallback: Hardcoded Admin
-            if (username === 'admin' && password === 'admin123') {
-                const adminUser = { Username: 'admin', Role: 'admin', Department: 'ADMIN', Status: 'Active' };
-                setUser(adminUser);
-                localStorage.setItem('sbh_user', JSON.stringify(adminUser));
-                localStorage.setItem('sbh_login_time', Date.now().toString());
-                return adminUser;
-            }
-
             const foundUser = users.find(u =>
                 String(u.Username).toLowerCase() === String(username).toLowerCase() &&
                 String(u.Password) === String(password)
@@ -59,10 +50,10 @@ export const AuthProvider = ({ children }) => {
 
             if (!foundUser) throw new Error('Invalid credentials');
 
-            if (foundUser.Status === 'Terminated' || foundUser.Status === 'Rejected') {
+            if (String(foundUser.Status) === 'Terminated' || String(foundUser.Status) === 'Rejected') {
                 throw new Error('TERMINATED: Your account has been rejected or terminated by the administrator.');
             }
-            if (foundUser.Status !== 'Active') {
+            if (String(foundUser.Status) !== 'Active') {
                 throw new Error('Account is pending approval or inactive');
             }
 

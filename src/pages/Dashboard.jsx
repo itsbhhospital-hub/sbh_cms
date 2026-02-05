@@ -67,7 +67,7 @@ const Dashboard = () => {
             }
         } else {
             // Personal Efficiency (If I am a Staff member)
-            const myRatings = ratingsData.filter(r => (r.ResolvedBy || '').toLowerCase() === username && Number(r.Rating) > 0);
+            const myRatings = ratingsData.filter(r => String(r.ResolvedBy || '').toLowerCase() === username && Number(r.Rating) > 0);
             if (myRatings.length > 0) {
                 const sum = myRatings.reduce((acc, r) => acc + Number(r.Rating), 0);
                 efficiencyScore = (sum / myRatings.length).toFixed(1);
@@ -79,8 +79,8 @@ const Dashboard = () => {
         // Check for Re-opened tickets assigned to ME
         if (role !== 'user') {
             const reopens = complaintsData.filter(c =>
-                (c.Status || '').trim().toLowerCase() === 'open' &&
-                (c.ResolvedBy || '').toLowerCase() === username &&
+                String(c.Status || '').trim().toLowerCase() === 'open' &&
+                String(c.ResolvedBy || '').toLowerCase() === username &&
                 username !== ''
             );
             if (reopens.length > 0) {

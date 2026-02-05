@@ -1,23 +1,19 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
 import { Clock, CheckCircle, AlertTriangle, Search, Calendar, Hash, X, Building2, User, ArrowRight, RefreshCw, Star, BarChart3, TrendingUp, ChevronRight } from 'lucide-react';
-
-import { memo } from 'react';
-
-// safeGet is no longer needed as data is normalized in googleSheets.js
-
+import { useClickOutside } from '../hooks/useClickOutside';
 
 const PerformanceWidget = ({ complaints, user }) => {
     const stats = useMemo(() => {
-        const role = (user?.Role || '').toLowerCase();
-        const username = (user?.Username || '').toLowerCase();
+        const role = String(user?.Role || '').toLowerCase();
+        const username = String(user?.Username || '').toLowerCase();
 
         // 1. Calculate MY Stats (as Resolver)
         const myResolved = complaints.filter(c =>
-            (c.ResolvedBy || '').toLowerCase() === username &&
-            ((c.Status || '').toLowerCase() === 'closed' || (c.Status || '').toLowerCase() === 'solved')
+            String(c.ResolvedBy || '').toLowerCase() === username &&
+            (String(c.Status || '').toLowerCase() === 'closed' || String(c.Status || '').toLowerCase() === 'solved')
         );
 
         let totalDays = 0;
@@ -150,7 +146,6 @@ const ComplaintCard = memo(({ complaint, onClick }) => (
 
 const ComplaintList = ({ onlyMyComplaints = false }) => {
     const { user } = useAuth();
-
     const [complaints, setComplaints] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
@@ -160,6 +155,22 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState(null);
     const [actionMode, setActionMode] = useState(null);
+    const modalRef = useRef(null);
+
+    useClickOutside(modalRef, () => {
+        // Only close if NOT in a sub-action (like rating confirmation) to prevent accidental closes
+        if (!actionMode) setDetailModalOpen(false);
+    });
+
+    // SCROLL LOCK EFFECT
+    useEffect(() => {
+        if (detailModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [detailModalOpen]);
 
     // Deep Linking
     const [searchParams] = useSearchParams();
@@ -169,78 +180,87 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
         if (ticketIdParam && complaints.length > 0) {
             const found = complaints.find(c => String(c.ID) === String(ticketIdParam));
             if (found) {
-                // Open modal if ticket ID matches URL param
                 openDetailModal(found);
             }
         }
-    }, [ticketIdParam, complaints.length]); // Only trigger on length change or param change
+    }, [ticketIdParam, complaints.length]);
+
     const [remark, setRemark] = useState('');
     const [targetDate, setTargetDate] = useState('');
     const [rating, setRating] = useState(0);
-    const [hoverRating, setHoverRating] = useState(0); // NEW: For hover effect
+    const [hoverRating, setHoverRating] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // IMMUTABLE RATING LOGIC: Fetch separate ratings sheet
+    // IMMUTABLE RATING LOGIC
     const [immutableRatings, setImmutableRatings] = useState([]);
 
     useEffect(() => { loadComplaints(); }, []);
 
     const loadComplaints = async () => {
         try {
-            // Parallel Fetch for Performance
             const [complaintsData, ratingsData] = await Promise.all([
                 sheetsService.getComplaints(true),
                 sheetsService.getRatings(true)
             ]);
-            setComplaints(complaintsData);
+
+            const ratingMap = new Map();
+            (ratingsData || []).forEach(r => {
+                const key = String(r.ID || r['Ticket ID'] || '').toLowerCase();
+                ratingMap.set(key, r.Rating);
+            });
+
+            // Merge Ledger Ratings into Complaints
+            const mergedComplaints = complaintsData.map(c => {
+                const key = String(c.ID).toLowerCase();
+                const ledgerRating = ratingMap.get(key);
+                return {
+                    ...c,
+                    Rating: c.Rating || ledgerRating || '' // Prefer local, then ledger
+                };
+            });
+
+            setComplaints(mergedComplaints);
             setImmutableRatings(ratingsData || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
-    // Helper: Check if a ticket ID exists in the immutable ratings ledger
     const hasImmutableRating = (ticketId) => {
         if (!ticketId) return false;
-        // Check local state first (Optimistic) or immutable ledger
-        const local = complaints.find(c => c.ID === ticketId)?.Rating;
+        const local = complaints.find(c => String(c.ID) === String(ticketId))?.Rating;
         if (local) return true;
-
-        const tid = String(ticketId).toLowerCase();
-        return immutableRatings.some(r => String(r.ID || r['Ticket ID']).toLowerCase() === tid);
+        const tid = String(ticketId || '').toLowerCase();
+        return immutableRatings.some(r => String(r.ID || r['Ticket ID'] || '').toLowerCase() === tid);
     };
 
-    // Helper: Get the rating value from immutable ledger if main sheet is empty
     const getImmutableRatingValue = (ticketId) => {
-        const tid = String(ticketId).toLowerCase();
-        const found = immutableRatings.find(r => String(r.ID || r['Ticket ID']).toLowerCase() === tid);
+        const tid = String(ticketId || '').toLowerCase();
+        const found = immutableRatings.find(r => String(r.ID || r['Ticket ID'] || '').toLowerCase() === tid);
         return found ? found.Rating : null;
     };
 
     const openDetailModal = (complaint) => {
-        // MERGE: Ensure we have the latest rating info even if main sheet is stale
         const ledgerRating = getImmutableRatingValue(complaint.ID);
         const mergedComplaint = {
             ...complaint,
-            Rating: complaint.Rating || ledgerRating, // Trust Ledger if Main is empty
+            Rating: complaint.Rating || ledgerRating,
         };
-
         setSelectedComplaint(mergedComplaint);
         setActionMode(null);
         setRemark('');
         setTargetDate('');
-        setRating(0); // Reset rating
+        setRating(0);
         setDetailModalOpen(true);
     };
 
-    // --- RE-OPEN CHECK ---
     const canReopen = (complaint) => {
-        const resolvedDateStr = complaint.ResolvedDate || complaint.Date; // Fallback
-        if (!resolvedDateStr) return true; // Safety
+        const resolvedDateStr = complaint.ResolvedDate || complaint.Date;
+        if (!resolvedDateStr) return true;
         const resolvedTime = new Date(resolvedDateStr).getTime();
         const now = new Date().getTime();
         const hoursDiff = (now - resolvedTime) / (1000 * 60 * 60);
-        return hoursDiff <= 24; // Only allow if within 24 hours
+        return hoursDiff <= 24;
     };
 
     const DEPARTMENTS = [
@@ -257,7 +277,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
         const ticketId = selectedComplaint.ID;
         if (!ticketId) return alert("Error: Ticket ID is missing.");
 
-        // --- OPTIMISTIC UPDATE (Instant Feedback) ---
         const previousComplaints = [...complaints];
         const optimisticStatus = (actionMode === 'Resolve' || actionMode === 'Close' || actionMode === 'Rate' || actionMode === 'Force Close') ?
             (actionMode === 'Force Close' ? 'Force Close' : 'Closed') :
@@ -270,7 +289,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                     Status: optimisticStatus,
                     Rating: actionMode === 'Rate' ? rating : c.Rating,
                     Remark: (actionMode === 'Transfer' ? transferReason : remark) || c.Remark,
-                    Department: actionMode === 'Transfer' ? transferDept : c.Department // Optimistic Dept Update
+                    Department: actionMode === 'Transfer' ? transferDept : c.Department
                 };
             }
             return c;
@@ -279,16 +298,14 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
         setIsSubmitting(true);
         try {
             if (actionMode === 'Transfer') {
-                // CALL NEW TRANSFER API
                 await sheetsService.transferComplaint(
                     ticketId,
                     transferDept,
-                    '', // Optional Assignee (Left blank for now)
+                    '',
                     transferReason,
                     user.Username
                 );
             } else {
-                // EXISTING ACTIONS
                 let newStatus = selectedComplaint.Status;
                 if (actionMode === 'Resolve' || actionMode === 'Close' || actionMode === 'Rate' || actionMode === 'Force Close') {
                     newStatus = actionMode === 'Force Close' ? 'Force Close' : 'Closed';
@@ -299,7 +316,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                 await sheetsService.updateComplaintStatus(ticketId, newStatus, user.Username, remark, targetDate, rating);
             }
 
-            // RESET ALL STATES TO CLEAN UP
             setActionMode(null);
             setRemark('');
             setRating(0);
@@ -309,61 +325,47 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
             setSelectedComplaint(null);
             setDetailModalOpen(false);
             setShowSuccess(true);
-
-            // Force refresh
-            setTimeout(() => {
-                loadComplaints();
-            }, 600);
+            setTimeout(() => { loadComplaints(); }, 600);
 
         } catch (error) {
             console.error(error);
             alert("Failed to perform action.");
-            setComplaints(previousComplaints); // Revert
+            setComplaints(previousComplaints);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // --- FILTERING LOGIC ---
     const filteredComplaints = useMemo(() => {
         let result = complaints;
-
-        // 1. Role-Based Permissions
         if (onlyMyComplaints) {
-            // "My Complaints" Page: Show only what *I* reported
-            result = result.filter(c => (c.ReportedBy || '').toLowerCase() === (user.Username || '').toLowerCase());
+            result = result.filter(c => String(c.ReportedBy || '').toLowerCase() === String(user.Username || '').toLowerCase());
         } else {
-            // Dashboard Logic
             if (user.Role === 'admin') {
-                // Admin sees ALL
             } else {
-                // Staff sees only their DEPARTMENT'S tickets
-                const myDept = (user.Department || '').toLowerCase();
-                const myUsername = (user.Username || '').toLowerCase();
+                const myDept = String(user.Department || '').toLowerCase();
+                const myUsername = String(user.Username || '').toLowerCase();
                 result = result.filter(c =>
-                    (c.Department || '').toLowerCase() === myDept ||
-                    (c.ReportedBy || '').toLowerCase() === myUsername // Also see what they reported
+                    String(c.Department || '').toLowerCase() === myDept ||
+                    String(c.ReportedBy || '').toLowerCase() === myUsername
                 );
             }
         }
 
-        // 2. Status Tabs Filter
         if (filter !== 'All') {
             result = result.filter(c => (c.Status || 'Open') === filter);
         }
 
-        // 3. Search Filter
         if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
+            const lowerSearch = String(searchTerm).toLowerCase();
             result = result.filter(c =>
-                String(c.id || c.ID).toLowerCase().includes(lowerSearch) ||
-                (c.Description || '').toLowerCase().includes(lowerSearch) ||
-                (c.Department || '').toLowerCase().includes(lowerSearch) ||
-                (c.ReportedBy || '').toLowerCase().includes(lowerSearch)
+                String(c.id || c.ID || '').toLowerCase().includes(lowerSearch) ||
+                String(c.Description || '').toLowerCase().includes(lowerSearch) ||
+                String(c.Department || '').toLowerCase().includes(lowerSearch) ||
+                String(c.ReportedBy || '').toLowerCase().includes(lowerSearch)
             );
         }
 
-        // 4. Sorting: Open first, then by Date (Newest first)
         return result.sort((a, b) => {
             if (a.Status === 'Open' && b.Status !== 'Open') return -1;
             if (a.Status !== 'Open' && b.Status === 'Open') return 1;
@@ -373,14 +375,10 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
         });
     }, [complaints, filter, searchTerm, user, onlyMyComplaints]);
 
-
-
     return (
         <div className="max-w-7xl mx-auto px-4 pb-32">
-            {/* Header Performance Widget */}
             <PerformanceWidget complaints={complaints} user={user} />
 
-            {/* Toolbar Section */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm mb-6 sticky top-4 z-20 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/80 backdrop-blur-xl">
                     <div className="flex items-center gap-3 w-full md:w-auto">
@@ -409,7 +407,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                     </div>
                 </div>
 
-                {/* Filter Tabs */}
                 <div className="flex gap-1 p-2 bg-slate-50/50 overflow-x-auto no-scrollbar">
                     {['All', 'Open', 'Solved', 'Closed'].map(f => (
                         <button
@@ -426,7 +423,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                 </div>
             </div>
 
-            {/* Content Area */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 animate-pulse">
                     <div className="h-4 w-3/4 bg-slate-200 rounded mb-4"></div>
@@ -443,7 +439,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                 </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {/* DESKTOP TABLE VIEW */}
                     <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <table className="w-full text-left border-collapse">
                             <thead>
@@ -469,7 +464,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                         </table>
                     </div>
 
-                    {/* MOBILE CARD VIEW */}
                     <div className="md:hidden">
                         {filteredComplaints.map(complaint => (
                             <ComplaintCard
@@ -482,30 +476,28 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                 </div>
             )}
 
-            {/* DETAIL MODAL */}
             {detailModalOpen && selectedComplaint && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+                    <div ref={modalRef} className="bg-white w-full max-w-2xl my-auto rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative border border-white/20">
 
                         {/* Modal Header */}
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 sticky top-0 z-10 backdrop-blur-md">
                             <div>
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded">#{selectedComplaint.ID}</span>
-                                    <span className={`text-[10px] font-black px-2 py-1 rounded border ${selectedComplaint.Status === 'Open' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
-                                        {selectedComplaint.Status.toUpperCase()}
+                                    <span className={`text-[10px] font-black px-2 py-1 rounded border ${String(selectedComplaint.Status).toLowerCase() === 'open' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                                        {String(selectedComplaint.Status).toUpperCase()}
                                     </span>
                                 </div>
                                 <h2 className="text-xl font-black text-slate-900 leading-tight">{selectedComplaint.Description}</h2>
                             </div>
-                            <button onClick={() => setDetailModalOpen(false)} className="p-2 bg-white hover:bg-slate-100 rounded-full transition-colors border border-slate-200 shadow-sm">
-                                <X size={20} className="text-slate-400" />
+                            <button onClick={() => setDetailModalOpen(false)} className="p-3 bg-white hover:bg-slate-100 rounded-full transition-colors border border-slate-200 shadow-sm active:scale-95 group">
+                                <X size={24} className="text-slate-400 group-hover:text-rose-500 transition-colors" />
                             </button>
                         </div>
 
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto custom-scrollbar space-y-8 flex-1">
-
                             {/* Key Info Grid */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -583,7 +575,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                         </div>
 
                         {/* FOOTER ACTIONS */}
-                        <div className="p-4 border-t border-slate-100 bg-slate-50">
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 sticky bottom-0 z-10 glass-safe-bottom">
                             {actionMode && (
                                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xl animate-in zoom-in-95 duration-200 max-w-lg mx-auto w-full">
                                     <div className="flex justify-between items-center mb-6">
@@ -596,7 +588,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                         </h4>
                                         <button onClick={() => setActionMode(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} className="text-slate-400" /></button>
                                     </div>
-
+                                    {/* Action Mode Content */}
                                     {actionMode === 'Rate' && (
                                         <div className="mb-6 bg-amber-50/50 p-6 rounded-2xl border border-amber-100/50 flex flex-col items-center justify-center">
                                             <p className="text-xs font-black text-amber-600/60 uppercase tracking-widest mb-4">Click to Rate</p>
@@ -610,8 +602,7 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                                     >
                                                         <Star
                                                             size={42}
-                                                            className={`transition-colors duration-200 drop-shadow-sm ${(hoverRating || rating) >= star ? "text-amber-400 fill-amber-400" : "text-slate-200"
-                                                                }`}
+                                                            className={`transition-colors duration-200 drop-shadow-sm ${(hoverRating || rating) >= star ? "text-amber-400 fill-amber-400" : "text-slate-200"}`}
                                                         />
                                                     </button>
                                                 ))}
@@ -621,14 +612,12 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                             </p>
                                         </div>
                                     )}
-
                                     {actionMode === 'Extend' && (
                                         <div className="mb-4">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Select New Date</label>
                                             <input type="date" className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400" value={targetDate} onChange={e => setTargetDate(e.target.value)} />
                                         </div>
                                     )}
-
                                     {actionMode === 'Transfer' && (
                                         <div className="mb-4 space-y-4">
                                             <div>
@@ -658,7 +647,6 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                             </div>
                                         </div>
                                     )}
-
                                     {actionMode !== 'Rate' && actionMode !== 'Transfer' && (
                                         <div className="relative">
                                             <textarea
@@ -669,18 +657,13 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
                                             />
                                         </div>
                                     )}
-
                                     <div className="mt-6">
                                         <button
                                             onClick={handleConfirmAction}
                                             disabled={isSubmitting || (actionMode === 'Rate' && rating === 0) || (actionMode === 'Transfer' && (!transferDept || !transferReason))}
                                             className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
                                         >
-                                            {isSubmitting ? (
-                                                <>Processing...</>
-                                            ) : (
-                                                <>Confirm {actionMode}</>
-                                            )}
+                                            {isSubmitting ? <>Processing...</> : <>Confirm {actionMode}</>}
                                         </button>
                                     </div>
                                 </div>
@@ -688,58 +671,26 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
 
                             {!actionMode && (
                                 <div className="flex flex-wrap gap-2">
-                                    {/* OPTION 1: Close Ticket (Dept/Admin) */}
-                                    {selectedComplaint.Status === 'Open' &&
-                                        (user.Role === 'admin' || (user.Department || '').toLowerCase() === (selectedComplaint.Department || '').toLowerCase()) && (
+                                    {(String(selectedComplaint.Status).toLowerCase() === 'open' || String(selectedComplaint.Status).toLowerCase() === 'transferred') &&
+                                        (user.Role === 'admin' || String(user.Department || '').toLowerCase() === String(selectedComplaint.Department || '').toLowerCase()) && (
                                             <>
                                                 <button onClick={() => setActionMode('Resolve')} className="flex-1 py-3 bg-emerald-700 text-white font-bold rounded-xl shadow-sm hover:bg-emerald-800 hover:-translate-y-0.5 transition-all">Mark as Resolved</button>
                                                 <button onClick={() => setActionMode('Extend')} className="flex-1 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all">Extend</button>
+                                                <button onClick={() => setActionMode('Transfer')} className="w-full py-3 mt-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm">Transfer to Another Dept</button>
                                             </>
                                         )}
-
-                                    {/* OPTION 2: Rate Service (Reporter) */}
-                                    {selectedComplaint.Status === 'Closed' &&
-                                        !selectedComplaint.Rating &&
-                                        !hasImmutableRating(selectedComplaint.ID) &&
-                                        (selectedComplaint.ReportedBy || '').toLowerCase() === (user.Username || '').toLowerCase() && (
-                                            <button
-                                                onClick={() => setActionMode('Rate')}
-                                                className="flex-1 py-4 bg-emerald-800 text-white font-black rounded-xl hover:bg-emerald-900 transition-all shadow-md active:scale-95 uppercase tracking-widest text-xs"
-                                            >
-                                                Rate This Service
-                                            </button>
-                                        )}
-
-                                    {/* OPTION 3: Re-open (Reporter) */}
-                                    {selectedComplaint.Status === 'Closed' &&
-                                        canReopen(selectedComplaint) &&
-                                        (selectedComplaint.ReportedBy || '').toLowerCase() === (user.Username || '').toLowerCase() && (
-                                            <button onClick={() => setActionMode('Re-open')} className="flex-1 py-3 bg-white text-rose-600 font-bold rounded-xl border border-rose-100 hover:bg-rose-50 transition-all shadow-sm">
-                                                Re-open Ticket
-                                            </button>
-                                        )}
-
-                                    {/* OPTION 4: Transfer (Dept/Admin) */}
-                                    {(selectedComplaint.Status === 'Open' || selectedComplaint.Status === 'Transferred') &&
-                                        (user.Role === 'admin' || (user.Department || '').toLowerCase() === (selectedComplaint.Department || '').toLowerCase()) && (
-                                            <button onClick={() => setActionMode('Transfer')} className="w-full py-3 mt-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm">
-                                                Transfer to Another Dept
-                                            </button>
-                                        )}
-
-                                    {/* OPTION 5: Force Close (Admin) */}
+                                    {String(selectedComplaint.Status).toLowerCase() === 'closed' && !selectedComplaint.Rating && !hasImmutableRating(selectedComplaint.ID) && String(selectedComplaint.ReportedBy || '').toLowerCase() === String(user.Username || '').toLowerCase() && (
+                                        <button onClick={() => setActionMode('Rate')} className="flex-1 py-4 bg-emerald-800 text-white font-black rounded-xl hover:bg-emerald-900 transition-all shadow-md active:scale-95 uppercase tracking-widest text-xs">Rate This Service</button>
+                                    )}
+                                    {String(selectedComplaint.Status).toLowerCase() === 'closed' && canReopen(selectedComplaint) && String(selectedComplaint.ReportedBy || '').toLowerCase() === String(user.Username || '').toLowerCase() && (
+                                        <button onClick={() => setActionMode('Re-open')} className="flex-1 py-3 bg-white text-rose-600 font-bold rounded-xl border border-rose-100 hover:bg-rose-50 transition-all shadow-sm">Re-open Ticket</button>
+                                    )}
                                     {user.Role === 'admin' && selectedComplaint.Status === 'Open' && (
-                                        <button
-                                            onClick={() => setActionMode('Force Close')}
-                                            className="w-full py-3 mt-2 bg-rose-50 text-rose-600 font-black rounded-xl border border-rose-200 hover:bg-rose-100 transition-all shadow-sm"
-                                        >
-                                            Force Close (Admin)
-                                        </button>
+                                        <button onClick={() => setActionMode('Force Close')} className="w-full py-3 mt-2 bg-rose-50 text-rose-600 font-black rounded-xl border border-rose-200 hover:bg-rose-100 transition-all shadow-sm">Force Close (Admin)</button>
                                     )}
                                 </div>
                             )}
                         </div>
-
                     </div>
                 </div>
             )}
@@ -759,4 +710,3 @@ const ComplaintList = ({ onlyMyComplaints = false }) => {
 };
 
 export default ComplaintList;
-

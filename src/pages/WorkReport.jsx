@@ -39,35 +39,38 @@ const WorkReport = () => {
 
     // Calculate Metrics for All Users
     const userMetrics = useMemo(() => {
+        if (!Array.isArray(users)) return []; // Safety Check
+
         return users.map(u => {
-            const username = u.Username || '';
+            const username = String(u.Username || '');
 
             // Tickets Resolved by this user
-            const resolvedTickets = complaints.filter(c =>
-                (c.ResolvedBy || '').toLowerCase() === username.toLowerCase()
+            const safeComplaints = Array.isArray(complaints) ? complaints : [];
+            const resolvedTickets = safeComplaints.filter(c =>
+                String(c.ResolvedBy || '').toLowerCase() === username.toLowerCase()
             );
 
             // Tickets Reported by this user
-            const reportedTickets = complaints.filter(c =>
-                (c.ReportedBy || '').toLowerCase() === username.toLowerCase()
+            const reportedTickets = safeComplaints.filter(c =>
+                String(c.ReportedBy || '').toLowerCase() === username.toLowerCase()
             );
 
             // Calculate Rating (Using 'ratings' sheet log for comprehensive history)
-            // Fallback to current ticket status if log is empty
-            const userRatings = ratings.filter(r => {
-                const resolver = (r.ResolvedBy || '').toLowerCase();
+            const safeRatings = Array.isArray(ratings) ? ratings : [];
+            const userRatings = safeRatings.filter(r => {
+                const resolver = String(r.ResolvedBy || '').toLowerCase();
                 return resolver === username.toLowerCase() && Number(r.Rating) > 0;
             });
 
             let avgRating = '0.0';
             if (userRatings.length > 0) {
-                const total = userRatings.reduce((acc, r) => acc + Number(r.Rating), 0);
+                const total = userRatings.reduce((acc, r) => acc + (Number(r.Rating) || 0), 0);
                 avgRating = (total / userRatings.length).toFixed(1);
             } else {
                 // FALLBACK: Use current active complaints if 'ratings' sheet is empty/missing
                 const currentRated = resolvedTickets.filter(c => Number(c.Rating) > 0);
                 if (currentRated.length > 0) {
-                    const total = currentRated.reduce((acc, c) => acc + Number(c.Rating), 0);
+                    const total = currentRated.reduce((acc, c) => acc + (Number(c.Rating) || 0), 0);
                     avgRating = (total / currentRated.length).toFixed(1);
                 }
             }
@@ -77,7 +80,9 @@ const WorkReport = () => {
                 const target = c.TargetDate;
                 const resolved = c.ResolvedDate;
                 if (target && resolved) {
-                    return new Date(resolved) > new Date(target);
+                    const d1 = new Date(resolved);
+                    const d2 = new Date(target);
+                    return !isNaN(d1) && !isNaN(d2) && d1 > d2;
                 }
                 return false;
             }).length;
@@ -88,18 +93,18 @@ const WorkReport = () => {
                     resolved: resolvedTickets.length,
                     reported: reportedTickets.length,
                     active: reportedTickets.filter(c => c.Status === 'Open').length,
-                    avgRating,
-                    ratingCount: userRatings.length > 0 ? userRatings.length : 0, // Track count
+                    avgRating: isNaN(avgRating) ? '0.0' : avgRating,
+                    ratingCount: userRatings.length > 0 ? userRatings.length : 0,
                     delayed: delayedCount,
-                    history: [...resolvedTickets, ...reportedTickets] // Combined history
+                    history: [...resolvedTickets, ...reportedTickets]
                 }
             };
         });
     }, [users, complaints, ratings]);
 
     const filteredUsers = userMetrics.filter(u =>
-        (u.Username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.Department || '').toLowerCase().includes(searchTerm.toLowerCase())
+        String(u.Username || '').toLowerCase().includes(String(searchTerm).toLowerCase()) ||
+        String(u.Department || '').toLowerCase().includes(String(searchTerm).toLowerCase())
     );
 
     if (loading) return (
@@ -178,7 +183,7 @@ const WorkReport = () => {
                                         <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">No activity found.</td></tr>
                                     ) : (
                                         selectedUser.stats.history.map((c, i) => {
-                                            const isResolver = (c.ResolvedBy || '').toLowerCase() === (selectedUser.Username || '').toLowerCase();
+                                            const isResolver = String(c.ResolvedBy || '').toLowerCase() === String(selectedUser.Username || '').toLowerCase();
                                             return (
                                                 <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                     <td className="p-4 font-bold text-slate-600">#{c.ID}</td>

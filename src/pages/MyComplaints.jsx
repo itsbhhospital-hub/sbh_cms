@@ -8,10 +8,10 @@ const MyComplaints = () => {
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                     <div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2 uppercase">My Ticket Portal</h1>
-                        <p className="text-emerald-700/60 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                        <div className="text-emerald-700/60 font-black text-xs uppercase tracking-widest flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                             Real-time Resolution Tracking
-                        </p>
+                        </div>
                     </div>
                 </div>
             </div>

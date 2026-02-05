@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
-import { Check, X, Shield, User as UserIcon, Lock, Search, Save, Edit2, Phone, ChevronLeft, ChevronRight, UserPlus, Trash2 } from 'lucide-react';
+import { Check, X, Shield, User as UserIcon, Lock, Search, Save, Edit2, Phone, ChevronLeft, ChevronRight, UserPlus, Trash2, Key } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const UserManagement = () => {
@@ -142,8 +142,8 @@ const UserManagement = () => {
     };
 
     const filteredUsers = users.filter(u =>
-        (u.Username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.Department || '').toLowerCase().includes(searchTerm.toLowerCase())
+        String(u.Username || '').toLowerCase().includes(String(searchTerm).toLowerCase()) ||
+        String(u.Department || '').toLowerCase().includes(String(searchTerm).toLowerCase())
     );
 
     // Pagination Logic
@@ -170,11 +170,36 @@ const UserManagement = () => {
                     </h1>
                     <p className="text-slate-500 font-medium mt-1 ml-1">
                         Total Users: <span className="font-bold text-slate-800">{users.length}</span> •
-                        Active: <span className="font-bold text-emerald-600">{users.filter(u => u.Status === 'Active').length}</span>
+                        Active: <span className="font-bold text-emerald-600">{users.filter(u => String(u.Status) === 'Active').length}</span>
                     </p>
                 </div>
 
                 <div className="flex gap-3 w-full md:w-auto">
+                    <button
+                        onClick={async () => {
+                            const newPass = prompt("Enter New Super Admin Password:");
+                            if (!newPass) return;
+                            if (newPass.length < 4) return alert("Password too short.");
+
+                            try {
+                                await sheetsService.updateUser({
+                                    Username: user.Username,
+                                    OldUsername: user.Username,
+                                    Password: newPass,
+                                    Status: 'Active'
+                                });
+                                alert("✅ Super Admin Password Updated Successfully!");
+                                loadUsers(); // Refresh
+                            } catch (e) {
+                                alert("Failed to update: " + e.message);
+                            }
+                        }}
+                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-bold shadow-sm transition-all active:scale-95 border border-slate-200"
+                    >
+                        <Key size={20} />
+                        <span className="hidden md:inline">Update My Password</span>
+                    </button>
+
                     <div className="relative flex-grow md:w-64">
                         <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
                         <input
@@ -340,7 +365,7 @@ const UserManagement = () => {
                                         <div className="flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black border tracking-tighter shadow-sm transition-transform group-hover:scale-105 ${u.Role === 'admin' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-100'
                                                 }`}>
-                                                {u.Username ? u.Username[0].toUpperCase() : '?'}
+                                                {String(u.Username || '').length > 0 ? String(u.Username)[0].toUpperCase() : '?'}
                                             </div>
                                             {editingUser === u.Username ? (
                                                 <input

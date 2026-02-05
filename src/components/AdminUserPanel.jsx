@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { sheetsService } from '../services/googleSheets';
-import { Check, X, Shield, User as UserIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { sheetsService } from '../services/googleSheets';
+import { Check, X, Shield, User as UserIcon, Key, AlertTriangle } from 'lucide-react';
 
 const AdminUserPanel = () => {
     const [users, setUsers] = useState([]);
@@ -43,6 +45,29 @@ const AdminUserPanel = () => {
         } catch (error) {
             console.error("Failed to update user", error);
             alert("Failed to update user on server.");
+        }
+    };
+
+    const handleResetPassword = async (username) => {
+        const newPass = prompt(`Enter NEW Password for user "${username}":`);
+        if (!newPass) return; // Cancelled
+        if (newPass.length < 4) return alert("Password must be at least 4 characters.");
+
+        const targetUser = users.find(u => u.Username === username);
+        if (!targetUser) return;
+
+        try {
+            const fullPayload = {
+                ...targetUser,
+                Password: newPass,
+                OldUsername: username // Ensure backend finds the right user
+            };
+
+            await sheetsService.updateUser(fullPayload);
+            alert(`Password for ${username} reset successfully.`);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to reset password.");
         }
     };
 
@@ -112,6 +137,13 @@ const AdminUserPanel = () => {
                                                 <Check size={14} strokeWidth={3} />
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => handleResetPassword(uName)}
+                                            className="p-2 bg-slate-100 text-slate-500 rounded-lg shadow-sm hover:bg-slate-200 hover:text-slate-800 transition-all border border-slate-200 active:scale-95"
+                                            title="Reset Password"
+                                        >
+                                            <Key size={14} strokeWidth={2.5} />
+                                        </button>
                                         <div className="relative">
                                             <select
                                                 className="text-xs font-bold border border-slate-200 rounded-lg py-2 pl-3 pr-8 bg-white text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none appearance-none cursor-pointer hover:border-emerald-300 transition-colors shadow-sm"

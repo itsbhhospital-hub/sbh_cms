@@ -153,6 +153,7 @@ const sendToSheet = async (action, payload) => {
         // Invalidate Cache on Successful Write
         if (action === 'createComplaint' || action === 'updateComplaintStatus') {
             invalidateCache('data'); // 'data' is the sheet name for complaints
+            invalidateCache('ratings'); // Force refresh of ratings ledger
         }
         if (action === 'registerUser' || action === 'updateUser') {
             invalidateCache('master'); // 'master' is the sheet name for users
