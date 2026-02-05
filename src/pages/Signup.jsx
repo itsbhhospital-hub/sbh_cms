@@ -61,75 +61,58 @@ const Signup = () => {
 
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-50">
-            {/* Blurred Background Image */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
-                <img
-                    src={sbhBg}
-                    alt="Background"
-                    className="w-full h-full object-cover blur-md scale-105 opacity-60 pointer-events-none"
-                />
-                <div className="absolute inset-0 bg-white/40"></div> {/* Overlay for contrast */}
+        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
+            {/* Subtle Professional Background */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute top-0 left-0 w-full h-[50vh] bg-emerald-900/5"></div>
+                <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl"></div>
             </div>
 
             <motion.div
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden relative z-10 border border-slate-100"
+                transition={{ duration: 0.3 }}
+                className="w-full max-w-lg bg-white rounded-2xl shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] overflow-hidden relative z-10 border border-slate-200"
             >
-                <div className="bg-slate-900 p-8 text-center text-white relative">
-                    <div className="relative z-10">
-                        <h2 className="text-2xl font-black tracking-tight">Create Account</h2>
-                        <p className="text-slate-400 text-sm mt-1 font-bold tracking-wide uppercase">Join the SBH Team</p>
-                    </div>
+                {/* Minimal Header */}
+                <div className="bg-white p-8 pb-0 text-center">
+                    <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Create Account</h2>
+                    <p className="text-slate-500 text-xs font-medium mt-1">Join the SBH Team</p>
                 </div>
 
-                <div className="p-8">
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Username</label>
-                                <div className="relative group">
-                                    <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                                        <User size={18} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Username"
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all text-slate-700 font-medium text-sm"
-                                        value={formData.username}
-                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                        required
-                                    />
-                                </div>
+                <div className="p-8 pt-6">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Username</label>
+                                <input
+                                    type="text"
+                                    placeholder="Username"
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-slate-800 font-semibold text-sm placeholder:text-slate-400"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    required
+                                />
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
-                                <div className="relative group">
-                                    <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                                        <Lock size={18} />
-                                    </div>
-                                    <input
-                                        type="password"
-                                        placeholder="Password"
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all text-slate-700 font-medium text-sm"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        required
-                                    />
-                                </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Password</label>
+                                <input
+                                    type="password"
+                                    placeholder="Password"
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-slate-800 font-semibold text-sm placeholder:text-slate-400"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    required
+                                />
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Department</label>
-                            <div className="relative group">
-                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                                    <Building size={18} />
-                                </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Department</label>
+                            <div className="relative">
                                 <select
-                                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all text-slate-700 font-medium text-sm appearance-none cursor-pointer"
+                                    className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-slate-800 font-semibold text-sm appearance-none cursor-pointer placeholder:text-slate-400"
                                     value={formData.department}
                                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                                     required
@@ -139,129 +122,108 @@ const Signup = () => {
                                         <option key={dept} value={dept}>{dept}</option>
                                     ))}
                                 </select>
-                                <div className="absolute right-4 top-4 pointer-events-none text-slate-400 text-xs">▼</div>
+                                <div className="absolute right-4 top-3.5 pointer-events-none text-slate-400 text-xs">▼</div>
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Mobile</label>
-                            <div className="relative group">
-                                <div className="absolute left-3 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                                    <Phone size={18} />
-                                </div>
-                                <input
-                                    type="tel"
-                                    placeholder="10-Digit Mobile Number"
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all text-slate-700 font-medium text-sm"
-                                    value={formData.mobile}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, '');
-                                        if (val.length <= 10) setFormData({ ...formData, mobile: val });
-                                    }}
-                                    required
-                                    pattern="\d{10}"
-                                />
-                            </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">Mobile</label>
+                            <input
+                                type="tel"
+                                placeholder="10-Digit Mobile Number"
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-slate-800 font-semibold text-sm placeholder:text-slate-400"
+                                value={formData.mobile}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    if (val.length <= 10) setFormData({ ...formData, mobile: val });
+                                }}
+                                required
+                                pattern="\d{10}"
+                            />
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full py-3.5 bg-slate-900 hover:bg-black text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.99] flex items-center justify-center gap-2 mt-2 disabled:opacity-70 disabled:cursor-wait"
+                            className="w-full py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.99] flex items-center justify-center gap-2 mt-4 disabled:opacity-70 disabled:cursor-wait"
                         >
                             {isLoading ? (
-                                <div className="w-5 h-5 border-2 border-slate-500 border-t-white rounded-full animate-spin"></div>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                             ) : (
                                 "Create Account"
                             )}
                         </button>
                     </form>
-                </div>
 
-                <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
-                    <p className="text-slate-500 text-sm font-medium">
-                        Already have an account?{' '}
-                        <Link to="/login" className="text-emerald-600 font-bold hover:underline">
-                            Sign in
-                        </Link>
-                    </p>
+                    <div className="mt-6 pt-6 border-t border-slate-100 text-center">
+                        <p className="text-slate-400 text-xs font-medium">
+                            Already have an account?{' '}
+                            <Link to="/login" className="text-emerald-700 font-bold hover:underline">
+                                Sign In
+                            </Link>
+                        </p>
+                    </div>
                 </div>
             </motion.div>
 
 
-            {/* Duplicate User Modal */}
+            {/* Duplicate User Modal - Clean & Fast */}
             {showDuplicate && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full text-center shadow-[0_20px_70px_-15px_rgba(16,185,129,0.3)] border border-emerald-50 relative overflow-hidden"
-                    >
-                        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-50 to-transparent -z-10"></div>
-
-                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200/50">
-                            <User className="text-emerald-600" size={32} />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100">
+                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <User className="text-emerald-600" size={28} />
                         </div>
 
-                        <h3 className="text-2xl font-black text-slate-800 mb-2">Account Exists</h3>
-                        <p className="text-emerald-600 font-bold text-[10px] uppercase tracking-widest mb-4">Registration Conflict</p>
-
-                        <p className="text-slate-500 mb-8 font-medium leading-relaxed">
+                        <h3 className="text-xl font-bold text-slate-800 mb-1">Account Exists</h3>
+                        <p className="text-slate-500 text-xs font-medium mb-6">
                             {showDuplicate === 'username'
-                                ? "This username is already taken. Please try to login or use a different name."
-                                : "This mobile number is already registered. Please check again or contact support."}
+                                ? "This username is already taken."
+                                : "This mobile number is already registered."}
                         </p>
 
                         <div className="flex flex-col gap-3">
                             <button
                                 onClick={() => setShowDuplicate(null)}
-                                className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                                className="w-full bg-emerald-700 text-white font-bold py-3 rounded-lg hover:bg-emerald-800 transition-all"
                             >
-                                Fix Details
+                                Try Again
                             </button>
                             <Link
                                 to="/login"
-                                className="text-emerald-600 font-bold text-sm hover:underline"
+                                className="text-slate-500 font-bold text-xs hover:text-slate-700 hover:underline"
                             >
                                 Go to Login
                             </Link>
                         </div>
-                    </motion.div>
+                    </div>
                 </div>
             )}
 
-            {/* Success Modal */}
+            {/* Success Modal - Clean & Fast */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-                    <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-[0_20px_70px_-15px_rgba(16,185,129,0.3)] text-center border border-emerald-50 relative overflow-hidden"
-                    >
-                        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-50 to-transparent -z-10"></div>
-
-                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200/50">
-                            <span className="text-3xl text-emerald-600">✓</span>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100">
+                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-2xl text-emerald-600 font-bold">✓</span>
                         </div>
 
-                        <h3 className="text-2xl font-black text-slate-800 mb-2">Request Sent!</h3>
-                        <p className="text-emerald-600 font-bold text-[10px] uppercase tracking-widest mb-4">Verification Pending</p>
-
-                        <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
-                            Your account is pending admin approval.<br />
-                            You can sign in once your access is verified.
+                        <h3 className="text-xl font-bold text-slate-800 mb-1">Request Sent</h3>
+                        <p className="text-slate-500 text-xs font-medium mb-6">
+                            Your account is pending admin approval.
                         </p>
+
                         <Link
                             to="/login"
-                            className="bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl transition-all block w-full shadow-lg"
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-lg transition-all block w-full"
                         >
                             Return to Login
                         </Link>
-                    </motion.div>
+                    </div>
                 </div>
             )}
 
-            {/* Simple Footer Link/Copyright */}
+            {/* Standard Footer */}
             <Footer />
         </div>
     );
