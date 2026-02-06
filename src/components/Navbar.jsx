@@ -165,7 +165,7 @@ const Navbar = () => {
     if (!user) return null;
 
     return (
-        <nav className="sticky top-0 z-[100] w-full px-6 py-3 bg-white border-b border-slate-200 shadow-sm transition-all duration-300">
+        <nav className="sticky top-0 z-[100] w-full px-4 py-2 md:px-6 md:py-3 bg-white border-b border-slate-200 shadow-sm transition-all duration-300">
             <div className="max-w-7xl mx-auto flex justify-between items-center gap-4">
 
                 {/* Brand Logo - Left Aligned */}

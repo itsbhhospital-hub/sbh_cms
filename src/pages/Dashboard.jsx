@@ -210,7 +210,7 @@ const Dashboard = () => {
             )}
 
             {/* Stats Grid - Role Based */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <StatCard icon={AlertCircle} title="Open" value={stats.open} bgClass="bg-amber-100" colorClass="text-amber-700" delay={0} filterType="Open" />
 
                 {/* Pending Only shown if non-zero or specific logic, but requested to show card */}

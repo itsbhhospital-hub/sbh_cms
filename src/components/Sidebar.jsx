@@ -69,7 +69,7 @@ const Sidebar = () => {
             {/* Backdrop for Mobile */}
             {mobileOpen && (
                 <div
-                    className="md:hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
+                    className="md:hidden fixed inset-0 z-[140] bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
                     onClick={() => setMobileOpen(false)}
                 />
             )}
@@ -77,8 +77,8 @@ const Sidebar = () => {
             {/* Sidebar View */}
             <aside
                 style={{ '--sidebar-offset': mobileOpen ? '0px' : (collapsed ? '5rem' : '18rem') }}
-                className={`fixed md:sticky top-0 left-0 z-[130] h-screen bg-[var(--sidebar-bg)] border-r border-green-200/50 flex flex-col transition-all duration-300 ease-in-out shadow-[10px_0_40px_-15px_rgba(0,0,0,0.05)]
-                ${mobileOpen ? 'translate-x-0 w-[280px]' : '-translate-x-full md:translate-x-0'}
+                className={`fixed md:sticky top-0 left-0 z-[150] h-screen bg-[var(--sidebar-bg)] border-r border-green-200/50 flex flex-col transition-all duration-300 ease-in-out shadow-[10px_0_40px_-15px_rgba(0,0,0,0.05)]
+                ${mobileOpen ? 'translate-x-0 w-[80%] max-w-[300px]' : '-translate-x-full md:translate-x-0'}
                 ${collapsed ? 'md:w-20' : 'md:w-72'}`}
             >
                 {/* Header */}
@@ -106,7 +106,7 @@ const Sidebar = () => {
                 {/* Navigation Section */}
                 <div className="flex-1 px-3 py-6 overflow-y-auto no-scrollbar">
                     <div className="mb-4 px-4 text-small-info font-bold text-orange-950/40 tracking-wide leading-none">
-                        {(!collapsed || mobileOpen) && 'Deployment Core'}
+                        {(!collapsed || mobileOpen) && 'Hospital Services'}
                     </div>
 
                     <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />

@@ -43,7 +43,7 @@ const Layout = ({ children }) => {
         {/* Optimized Main Content: Removed overflow-x-hidden to prevent sticky conflict, removed 100vw to prevent scrollbar shift */}
         <main className="flex-1 ml-0 transition-all flex flex-col min-h-screen">
           <Navbar />
-          <div className="flex-grow p-4 md:p-10 pb-24 w-full">
+          <div className="flex-grow p-4 md:p-10 pb-32 md:pb-24 w-full">
             {children}
           </div>
           <Footer />
