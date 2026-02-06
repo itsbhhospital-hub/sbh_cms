@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import ComplaintForm from '../components/ComplaintForm';
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Activity } from 'lucide-react';
 
 const NewComplaint = () => {
     const navigate = useNavigate();
@@ -24,7 +24,10 @@ const NewComplaint = () => {
 
             <div className="mb-10">
                 <h1 className="text-page-title text-slate-900 tracking-tight font-black">Ticket Provisioning</h1>
-                <p className="text-table-data text-slate-500 font-bold mt-2 tracking-widest opacity-60">Strategic Service Deployment</p>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-100 mt-3 shadow-sm">
+                    <Activity size={14} className="text-orange-600" />
+                    <span className="text-[11px] font-black text-orange-700 tracking-[0.15em] uppercase">Strategic Service Deployment</span>
+                </div>
             </div>
 
             <ComplaintForm />
