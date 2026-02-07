@@ -335,12 +335,23 @@ function updateComplaintStatus(payload) {
 
         // Rating
         if (payload.Rating && colMap.Rating) {
-            if (isAlreadyRated(payload.ID)) return response('error', 'Already Rated');
+            // Fix: Get the REAL reporter from the sheet, not the payload (which might be the resolver)
+            const realReporter = colMap.ReportedBy ? (data[rowIndex - 1][colMap.ReportedBy - 1] || 'User') : 'User';
+
+            // Fix: Check against ID + Reporter combo
+            if (isAlreadyRated(payload.ID, realReporter)) return response('error', 'Already Rated');
+
             sheet.getRange(rowIndex, colMap.Rating).setValue(payload.Rating);
 
             let resolver = colMap.ResolvedBy ? data[rowIndex - 1][colMap.ResolvedBy - 1] : '';
-            logRating({ ID: payload.ID, Rating: payload.Rating, Remark: payload.Remark, Resolver: resolver || payload.ResolvedBy, Reporter: payload.ResolvedBy });
-            updateUserMetrics(resolver || payload.ResolvedBy); // Fix: Update metrics immediately after rating
+            logRating({
+                ID: payload.ID,
+                Rating: payload.Rating,
+                Remark: payload.Remark,
+                Resolver: resolver || payload.ResolvedBy,
+                Reporter: realReporter // Fix: Log the actual reporter
+            });
+            updateUserMetrics(resolver || payload.ResolvedBy); // Update metrics immediately
         }
 
         // Finalize Dates
@@ -712,13 +723,22 @@ function logCaseExtend(p) {
     sheet.appendRow([p.complaint_id, p.extended_by, p.old_target_date, p.new_target_date, p.diff_days, p.extension_time, p.reason]);
 }
 
-function isAlreadyRated(id) {
+function isAlreadyRated(id, reporter) {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ratings');
     if (!sheet) return false;
     const data = sheet.getDataRange().getValues();
-    const search = String(id).toLowerCase();
+    const searchId = String(id).toLowerCase();
+    const searchReporter = String(reporter).toLowerCase();
+
+    // Check if THIS reporter has already rated THIS ticket
     for (let i = 1; i < data.length; i++) {
-        if (String(data[i][1]).toLowerCase() === search) return true;
+        // Index 1 = Ticket ID, Index 5 = Reporter
+        const rowId = String(data[i][1]).toLowerCase();
+        const rowReporter = String(data[i][5]).toLowerCase();
+
+        if (rowId === searchId && rowReporter === searchReporter) {
+            return true;
+        }
     }
     return false;
 }
