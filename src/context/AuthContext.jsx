@@ -41,14 +41,17 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const users = await sheetsService.getUsers(false, true);
+            const users = await sheetsService.getUsers();
 
             const foundUser = users.find(u =>
-                String(u.Username).toLowerCase() === String(username).toLowerCase() &&
+                String(u.Username).toLowerCase().trim() === String(username).toLowerCase().trim() &&
                 String(u.Password) === String(password)
             );
 
-            if (!foundUser) throw new Error('Invalid credentials');
+            if (!foundUser) {
+                console.warn("LOGIN FAILED: User not found or wrong password."); // Keep this warn for safety
+                throw new Error('Invalid credentials');
+            }
 
             if (String(foundUser.Status) === 'Terminated' || String(foundUser.Status) === 'Rejected') {
                 throw new Error('TERMINATED: Your account has been rejected or terminated by the administrator.');

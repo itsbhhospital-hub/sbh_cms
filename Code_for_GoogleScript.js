@@ -560,6 +560,7 @@ function deleteUser(p) {
     return response('error', 'Not found');
 }
 
+
 // --- NOTIFICATION UTILS ---
 const API_USERNAME = "SBH HOSPITAL";
 const API_PASS = "123456789";
@@ -575,6 +576,7 @@ function sendWhatsApp(number, message) {
     } catch (e) { Logger.log("WhatsApp Error: " + e); }
 }
 
+// PART 1: NEW COMPLAINT ALERT
 function sendNewComplaintNotifications(dept, id, reporter, desc) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('master');
@@ -604,26 +606,110 @@ function sendNewComplaintNotifications(dept, id, reporter, desc) {
         if (rowD === targetDept || rowR === 'admin' || rowR === 'super_admin') staffMobiles.push(mobile);
     }
 
-    // Template 1: User Confirmation
+    // 1) Reporter Confirmation
     if (userMobile) {
-        const msg = `📌 *COMPLAINT REGISTERED*\n\nDear Staff,\nYour complaint has been logged successfully.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n👤 *Registered By:* ${reporter}\n📝 *Description:* ${desc}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = `📌 *COMPLAINT REGISTERED*\n\nDear ${reporter},\nYour complaint has been logged successfully.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n📝 *Issue:* ${desc}\n\nWe will update you shortly.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
         sendWhatsApp(userMobile, msg);
     }
 
-    // Template 2: Dept Alert
+    // 2) Concerned Department Alert
     [...new Set(staffMobiles)].forEach(m => {
         if (m && m !== userMobile) {
-            const msg = `🛠️ *NEW SERVICE TICKET*\n\nA new action item requires your attention.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n👤 *Registered By:* ${reporter}\n� *Description:* ${desc}\n\nPlease initiate resolution protocol.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+            const msg = `🚨 *NEW COMPLAINT ALERT*\n\nAttention Team,\nA new ticket requires your action.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n👤 *Reporter:* ${reporter}\n📝 *Issue:* ${desc}\n\nPlease check CMS and resolve.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
             sendWhatsApp(m, msg);
             Utilities.sleep(800);
         }
     });
 }
 
+// PART 2 & 3: DAILY REMINDERS & ESCALATION
+function checkPendingStatus() {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('data');
+    if (!sheet) return;
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colMap = getColMap(headers);
+    const now = new Date();
+
+    // Fetch Escalation Contacts
+    const L1 = getEscalationContact('L1'); // Director
+    const L2 = getEscalationContact('L2'); // Senior
+    const L3 = getEscalationContact('L3'); // Junior/Lead
+
+    for (let i = 1; i < data.length; i++) {
+        const status = String(data[i][colMap.Status - 1] || '').trim().toLowerCase();
+
+        // Filter: Open, Pending, In-Progress, Re-open
+        if (status !== 'open' && status !== 'pending' && status !== 'in-progress' && status !== 're-open') continue;
+
+        const dateStr = data[i][colMap.Date - 1];
+        if (!dateStr) continue;
+
+        const createdDate = new Date(dateStr);
+        const diffTime = now - createdDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        const id = data[i][colMap.ID - 1];
+        const dept = data[i][colMap.Department - 1];
+        const reporter = data[i][colMap.ReportedBy - 1];
+
+        // 1. Daily Pending Reminder (24h & 48h)
+        if (diffDays === 1) { // After 24 Hours
+            sendDeptReminder(id, dept, reporter, diffDays, "1st");
+        }
+        else if (diffDays === 2) { // After 48 Hours
+            sendDeptReminder(id, dept, reporter, diffDays, "2nd");
+            // ESCALATION: L3 (2 Days)
+            if (L3 && L3.mobile) sendEscalationMsg(L3.mobile, "L3 Officer", id, dept, diffDays);
+        }
+
+        // 2. Escalation System
+        else if (diffDays === 3) { // After 3 Days
+            if (L2 && L2.mobile) sendEscalationMsg(L2.mobile, "L2 Officer", id, dept, diffDays);
+        }
+        else if (diffDays >= 4) { // After 4 Days (Director)
+            // Only send once per day to Director for really old tickets
+            if (L1 && L1.mobile) sendEscalationMsg(L1.mobile, "L1 (DIRECTOR)", id, dept, diffDays);
+        }
+    }
+}
+
+function sendDeptReminder(id, dept, reporter, days, attempt) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('master');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const dIdx = findCol(headers, 'Department') - 1;
+    const mIdx = findCol(headers, 'Mobile') - 1;
+
+    const targetDept = normalize(dept);
+    const staffMobiles = [];
+
+    for (let i = 1; i < data.length; i++) {
+        const rowD = normalize(data[i][dIdx]);
+        if (rowD === targetDept) staffMobiles.push(data[i][mIdx]);
+    }
+
+    [...new Set(staffMobiles)].forEach(m => {
+        if (m) {
+            const msg = `⏳ *PENDING REMINDER (${attempt})*\n\nThis ticket is still pending resolution.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n⏱️ *Pending Days:* ${days}\n👤 *Reporter:* ${reporter}\n\nPlease resolve immediately to avoid escalation.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+            sendWhatsApp(m, msg);
+            Utilities.sleep(800);
+        }
+    });
+}
+
+function sendEscalationMsg(mobile, level, id, dept, days) {
+    const msg = `🔥 *ESCALATION ALERT: ${level}*\n\nCritical pending ticket reported.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n⏱️ *Pending Days:* ${days} Days\n\nImmediate Usage of Authority Required.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+    sendWhatsApp(mobile, msg);
+}
+
+// --- OTHER NOTIFICATIONS ---
+
 function sendResolutionNotification(id, reportedBy, status, resolvedBy, remark) {
     const mob = getUserMobile(reportedBy);
     if (mob) {
-        const msg = `✅ *TICKET RESOLVED*\n\nYour complaint has been addressed.\n\n🔹 *Ticket ID:* ${id}\n� *Resolved By:* ${resolvedBy}\n💬 *Resolution:* ${remark}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = `✅ *TICKET RESOLVED*\n\nYour complaint has been addressed.\n\n🔹 *Ticket ID:* ${id}\n👤 *Resolved By:* ${resolvedBy}\n💬 *Resolution:* ${remark}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
         sendWhatsApp(mob, msg);
     }
 }
@@ -638,7 +724,7 @@ function sendExtensionNotification(id, reportedBy, by, date, reason) {
 
 function sendAccountApprovalNotification(user, mobile) {
     if (mobile) {
-        const msg = `🔓 *ACCOUNT ACTIVATED*\n\nWelcome, ${user}.\nYour access to the SBH CMS Portal is now active.\n\n✅ *Status:* AUTHORIZED\n🌐 *Portal:* https://sbh-cms.vercel.app/\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = `🔓 *ACCOUNT ACTIVATED*\n\nWelcome back, ${user}!\nYour access to the SBH CMS Portal is now active.\n\n✅ *Status:* AUTHORIZED\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
         sendWhatsApp(mobile, msg);
     }
 }
@@ -646,7 +732,7 @@ function sendAccountApprovalNotification(user, mobile) {
 function sendReopenNotification(id, staff, by, remark) {
     const mob = getUserMobile(staff);
     if (mob) {
-        const msg = `⚠️ *TICKET RE-OPENED*\n\nPrevious resolution for ticket #${id} has been flagged for review.\n\n🔹 *Ticket ID:* ${id}\n👤 *Re-opened By:* ${by}\n� *Remarks:* ${remark}\n\nImmediate attention required.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = `⚠️ *TICKET RE-OPENED*\n\nPrevious resolution for ticket #${id} has been flagged for review.\n\n🔹 *Ticket ID:* ${id}\n👤 *Re-opened By:* ${by}\n💬 *Remarks:* ${remark}\n\nImmediate attention required.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
         sendWhatsApp(mob, msg);
     }
 }
@@ -654,7 +740,7 @@ function sendReopenNotification(id, staff, by, remark) {
 function sendForceCloseNotification(id, reportedBy, reason) {
     const mob = getUserMobile(reportedBy);
     if (mob) {
-        const msg = `🔒 *MANAGEMENT CLOSURE*\n\nYour complaint has been administratively closed.\n\n� *Ticket ID:* ${id}\n📝 *Reason:* ${reason || 'Administrative Action'}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = `🔒 *MANAGEMENT CLOSURE*\n\nYour complaint has been administratively closed.\n\n🔹 *Ticket ID:* ${id}\n📝 *Reason:* ${reason || 'Administrative Action'}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
         sendWhatsApp(mob, msg);
     }
 }
@@ -701,24 +787,26 @@ function getUserMobile(username) {
     return null;
 }
 
-// --- LOGGING ---
+// --- LOGGING UTILS ---
+
 function logToAuditHistory(p) {
     let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('history');
     if (!sheet) {
         sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('history');
         sheet.appendRow(['Date', 'Ticket ID', 'Action', 'Performed By', 'Remarks', 'Old Status', 'New Status', 'Rating']);
     }
-    // Added Rating back to match User's schema expectations
     sheet.appendRow([getISTTimestamp(), p.ID, p.Action, p.By, p.Remark, p.OldStatus, p.NewStatus, p.Rating || '']);
 }
 
 function logRating(p) {
-    let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ratings');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('Complaint_Ratings');
     if (!sheet) {
-        sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('ratings');
-        sheet.appendRow(['Date', 'Ticket ID', 'Rating', 'Remark', 'Resolver', 'Reporter']);
+        sheet = ss.insertSheet('Complaint_Ratings');
+        sheet.appendRow(['Date', 'Ticket ID', 'Staff Name', 'Reporter Name', 'Rating', 'Feedback']);
     }
-    sheet.appendRow([getISTTimestamp(), p.ID, p.Rating, p.Remark, p.Resolver, p.Reporter]);
+    // Updated Logic: Log to dedicated sheet
+    sheet.appendRow([getISTTimestamp(), p.ID, p.Resolver, p.Reporter, p.Rating, p.Remark]);
 }
 
 function logCaseTransfer(p) {
@@ -744,19 +832,14 @@ function logCaseExtend(p) {
 }
 
 function isAlreadyRated(id, reporter) {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ratings');
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Complaint_Ratings');
     if (!sheet) return false;
     const data = sheet.getDataRange().getValues();
     const searchId = String(id).toLowerCase();
     const searchReporter = String(reporter).toLowerCase();
 
-    // Check if THIS reporter has already rated THIS ticket
     for (let i = 1; i < data.length; i++) {
-        // Index 1 = Ticket ID, Index 5 = Reporter
-        const rowId = String(data[i][1]).toLowerCase();
-        const rowReporter = String(data[i][5]).toLowerCase();
-
-        if (rowId === searchId && rowReporter === searchReporter) {
+        if (String(data[i][1]).toLowerCase() === searchId && String(data[i][3]).toLowerCase() === searchReporter) {
             return true;
         }
     }
@@ -766,56 +849,76 @@ function isAlreadyRated(id, reporter) {
 function updateUserMetrics(username) {
     if (!username) return;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let rSheet = ss.getSheetByName('ratings');
-    if (!rSheet) return; // No ratings yet
+    const rSheet = ss.getSheetByName('Complaint_Ratings');
+    if (!rSheet) return;
+    const rData = rSheet.getDataRange().getValues();
 
-    const data = rSheet.getDataRange().getValues();
-    // Filter ratings for this user
-    let total = 0;
-    let count = 0;
-
-    // Schema: [Date, Ticket ID, Rating, Remark, Resolver, Reporter]
-    // Resolver is index 4
+    let totalRating = 0;
+    let ratingCount = 0;
     const targetUser = String(username).toLowerCase();
 
-    for (let i = 1; i < data.length; i++) {
-        if (String(data[i][4]).toLowerCase() === targetUser) {
-            let r = parseFloat(data[i][2]);
+    for (let i = 1; i < rData.length; i++) {
+        if (String(rData[i][2]).toLowerCase() === targetUser) {
+            let r = parseFloat(rData[i][4]);
             if (!isNaN(r)) {
-                total += r;
-                count++;
+                totalRating += r;
+                ratingCount++;
             }
         }
     }
 
-    if (count === 0) return;
-    const avg = (total / count).toFixed(2);
+    const dSheet = ss.getSheetByName('data');
+    const dData = dSheet.getDataRange().getValues();
+    let colMap = getColMap(dData[0]); // Simple header check
+    // fallback if header logic fails
+    if (!colMap.ID) {
+        for (let r = 0; r < Math.min(dData.length, 5); r++) {
+            const rowStr = dData[r].join(' ').toLowerCase();
+            if (rowStr.includes('date') && (rowStr.includes('desc') || rowStr.includes('status'))) {
+                colMap = getColMap(dData[r]);
+                break;
+            }
+        }
+    }
 
-    // Update performance sheet
-    let pSheet = ss.getSheetByName('user_performance');
+    let solvedCount = 0;
+    if (colMap.ResolvedBy && colMap.Status) {
+        for (let i = 1; i < dData.length; i++) {
+            const rBy = String(dData[i][colMap.ResolvedBy - 1] || '').toLowerCase();
+            const status = String(dData[i][colMap.Status - 1] || '').toLowerCase();
+            if (rBy === targetUser && (status === 'closed' || status === 'resolved')) {
+                solvedCount++;
+            }
+        }
+    }
+
+    let pSheet = ss.getSheetByName('User_Performance_Ratings');
     if (!pSheet) {
-        pSheet = ss.insertSheet('user_performance');
-        pSheet.appendRow(['Username', 'Average Rating', 'Total Ratings', 'Last Updated']);
+        pSheet = ss.insertSheet('User_Performance_Ratings');
+        pSheet.appendRow(['Staff Name', 'Total Cases Solved', 'Total Ratings Received', 'Average Rating', 'Last Updated']);
     }
 
     const pData = pSheet.getDataRange().getValues();
+    const avg = ratingCount > 0 ? (totalRating / ratingCount).toFixed(2) : 0;
+    const now = getISTTimestamp();
     let found = false;
+
     for (let i = 1; i < pData.length; i++) {
         if (String(pData[i][0]).toLowerCase() === targetUser) {
-            pSheet.getRange(i + 1, 2).setValue(avg);
-            pSheet.getRange(i + 1, 3).setValue(count);
-            pSheet.getRange(i + 1, 4).setValue(getISTTimestamp());
+            pSheet.getRange(i + 1, 2).setValue(solvedCount);
+            pSheet.getRange(i + 1, 3).setValue(ratingCount);
+            pSheet.getRange(i + 1, 4).setValue(avg);
+            pSheet.getRange(i + 1, 5).setValue(now);
             found = true;
             break;
         }
     }
 
     if (!found) {
-        pSheet.appendRow([username, avg, count, getISTTimestamp()]);
+        pSheet.appendRow([username, solvedCount, ratingCount, avg, now]);
     }
 }
 
-// --- ESCALATION ---
 function getEscalationContact(level) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = ss.getSheetByName('escalation_matrix');
@@ -823,28 +926,4 @@ function getEscalationContact(level) {
     const data = sheet.getDataRange().getValues();
     const row = data.find(r => String(r[0]).trim().toUpperCase() === String(level).toUpperCase());
     return row ? { name: row[1], mobile: row[2] } : null;
-}
-
-function checkEscalationStatus() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('data');
-    if (!sheet) return;
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const colMap = getColMap(headers);
-    if (!colMap.Status || !colMap['Reopened Date']) return;
-
-    const now = new Date();
-    const L1 = getEscalationContact('L1');
-    const L2 = getEscalationContact('L2');
-
-    for (let i = 1; i < data.length; i++) {
-        const status = String(data[i][colMap.Status - 1] || '');
-        const reopStr = data[i][colMap['Reopened Date'] - 1];
-        if (status === 'Open' && reopStr) {
-            const diff = (now - new Date(reopStr)) / 36e5; // hours
-            const id = data[i][colMap.ID - 1];
-            if (diff >= 24 && L1) sendWhatsApp(L1.mobile, `🔥 L1 ESCALATION: Ticket #${id} pending >24h.`);
-            else if (diff >= 4 && L2) sendWhatsApp(L2.mobile, `⚠️ L2 ALERT: Ticket #${id} pending >4h.`);
-        }
-    }
 }

@@ -81,36 +81,27 @@ const normalizeRows = (rows) => {
         normalized.Description = findValue(['Description', 'Desc', 'Complaint']);
         normalized.Status = findValue(['Status']);
         normalized.ReportedBy = findValue(['ReportedBy', 'User', 'Reporter', 'ReporterName', 'Reporter Name']);
-        normalized.ResolvedBy = findValue(['ResolvedBy', 'AssignedTo', 'Staff', 'StaffName', 'Staff Name (Resolver)']);
+        // Complaint_Ratings specific
+        normalized.ResolvedBy = findValue(['ResolvedBy', 'AssignedTo', 'Staff', 'StaffName', 'Staff Name', 'Staff Name (Resolver)']);
         normalized.Remark = findValue(['Remark', 'Comments', 'Feedback']);
-        normalized.Unit = findValue(['Unit', 'Section', 'Ward']);
-        normalized.TargetDate = findValue(['TargetDate', 'DueDate']);
-        normalized.ResolvedDate = findValue(['Resolved Date', 'ClosureDate']);
-        normalized.ReopenedDate = findValue(['Reopened Date']);
-        normalized.History = findValue(['History', 'Logs']);
-        normalized.Rating = findValue(['Rating', 'Stars']);
+        normalized.Unit = findValue(['Unit', 'Section', 'Ward']); // NEW: Unit Mapping
+        normalized.ResolvedDate = findValue(['Resolved Date', 'Closed Date', 'Closure Date', 'ResolvedDate']); // NEW: Closed Date Mapping
+        normalized.Rating = findValue(['Rating', 'Stars', 'Rate']); // NEW: Rating Mapping
 
-        // Master Sheet specific
-        normalized.Username = findValue(['Username', 'Name']);
-        normalized.Password = findValue(['Password']);
-        normalized.Role = findValue(['Role', 'UserType']);
-        normalized.Mobile = findValue(['Mobile', 'Phone', 'WhatsApp']);
+        // User_Performance_Ratings specific
+        normalized.SolvedCount = findValue(['Total Cases Solved', 'Solved Count', 'Cases Solved']);
+        normalized.RatingCount = findValue(['Total Ratings Received', 'Total Ratings', 'Rating Count']);
+        normalized.AvgRating = findValue(['Average Rating', 'Avg Rating']);
+        normalized.LastUpdated = findValue(['Last Updated', 'Date']);
 
-        // Case Transfer Log specific
-        normalized.ComplaintID = findValue(['complaint_id', 'Complaint ID']);
-        normalized.TransferredBy = findValue(['transferred_by', 'Transferred By']);
-        normalized.FromDepartment = findValue(['from_department', 'From Department']);
-        normalized.ToDepartment = findValue(['to_department', 'To Department']);
-        normalized.ToUser = findValue(['to_user', 'To User']);
-        normalized.TransferTime = findValue(['transfer_time', 'Transfer Time']);
-        normalized.Reason = findValue(['reason', 'Reason']);
+        // User/Master Sheet specific
+        normalized.Username = findValue(['Username', 'User Name', 'Name', 'Staff Name']);
+        normalized.Password = findValue(['Password', 'Pass']);
+        normalized.Role = findValue(['Role', 'Access Level']);
+        normalized.Mobile = findValue(['Mobile', 'Phone', 'Contact']);
 
-        // Case Extend Log specific
-        normalized.ExtendedBy = findValue(['extended_by', 'Extended By']);
-        normalized.OldTargetDate = findValue(['old_target_date', 'Old Target Date']);
-        normalized.NewTargetDate = findValue(['new_target_date', 'New Target Date']);
-        normalized.DiffDays = findValue(['diff_days', 'Diff Days']);
-        normalized.ExtensionTime = findValue(['extension_time', 'Extension Time']);
+        // Default fallbacks for crucial fields if missing
+        if (!normalized.ID && normalized.Username) normalized.ID = normalized.Username; // Treat Username as ID for users
 
         return normalized;
     });
@@ -197,7 +188,8 @@ const sendToSheet = async (action, payload, silent = false) => {
 export const sheetsService = {
     getComplaints: (force = false, silent = false) => fetchSheetData('data', force, { silent }),
     getUsers: (force = false, silent = false) => fetchSheetData('master', force, { silent }),
-    getRatings: (force = false, silent = false) => fetchSheetData('ratings', force, { silent }),
+    getRatings: (force = false, silent = false) => fetchSheetData('Complaint_Ratings', force, { silent }), // Updated Sheet Name
+    getUserPerformance: (force = false, silent = false) => fetchSheetData('User_Performance_Ratings', force, { silent }), // New Function
     getTransferLogs: (force = false, silent = false) => fetchSheetData('Case_Transfer_Log', force, { silent }),
     getExtensionLogs: (force = false, silent = false) => fetchSheetData('Case_Extend_Log', force, { silent }),
 

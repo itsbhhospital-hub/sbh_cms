@@ -109,18 +109,30 @@ const UserManagement = () => {
         }
     };
 
-    const filteredUsers = users.filter(u => {
-        const username = String(u.Username || '').toLowerCase();
-        const role = String(u.Role || '').toUpperCase();
-        const currentRole = (user.Role || '').toUpperCase();
+    const [isApproving, setIsApproving] = useState(false);
 
-        if (currentRole !== 'SUPER_ADMIN') {
-            if (role === 'SUPER_ADMIN' || username === 'superadmin' || username === 'amsir') return false;
+    const handleApprove = async (u) => {
+        if (!confirm(`Approve access for ${u.Username}?`)) return;
+        setIsApproving(true);
+        try {
+            await sheetsService.updateUser({ Username: u.Username, Status: 'Active' });
+            setActionSuccess("User approved & notified! ✅");
+            loadUsers();
+        } catch (error) {
+            alert("Failed to approve user.");
+            console.error(error);
+        } finally {
+            setIsApproving(false);
         }
+    };
 
-        const search = searchTerm.toLowerCase();
-        return username.includes(search) || String(u.Department || '').toLowerCase().includes(search);
-    });
+    // ... (rest of filtering)
+
+    const filteredUsers = users.filter(u =>
+        u.Username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.Department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.Role.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
     const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -180,7 +192,7 @@ const UserManagement = () => {
                             {loading ? (
                                 <tr><td colSpan="5" className="p-20 text-center text-slate-400 animate-pulse">Loading...</td></tr>
                             ) : paginatedUsers.map((u, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                <tr key={u.Username || idx} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white shadow-sm ${u.Role === 'admin' ? 'bg-orange-600' : 'bg-slate-400'}`}>
@@ -211,6 +223,16 @@ const UserManagement = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
+                                            {u.Status !== 'Active' && (
+                                                <button
+                                                    onClick={() => handleApprove(u)}
+                                                    disabled={isApproving}
+                                                    title="Approve User"
+                                                    className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100 shadow-sm"
+                                                >
+                                                    <Check size={16} strokeWidth={3} />
+                                                </button>
+                                            )}
                                             <button onClick={() => handleEditClick(u)} className="p-2 text-slate-400 hover:text-orange-600 transition-colors"><Edit2 size={16} /></button>
                                             {u.Username !== user.Username && (
                                                 <button onClick={() => setDeleteConfirm(u)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
@@ -231,154 +253,160 @@ const UserManagement = () => {
                         </div>
                     </div>
                 )}
-            </div>
+            </div >
 
             {/* Add User Modal */}
-            {addingUser && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100"
-                    >
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
-                                    <UserPlus size={20} />
-                                </div>
-                                Add New Member
-                            </h3>
-                            <button onClick={() => !loading && setAddingUser(false)} disabled={loading} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">
-                                    Full Name / ID <span className="text-slate-300 normal-case tracking-normal ml-1">(e.g. Naman Mishra)</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                                    placeholder="Example: Naman Mishra"
-                                    value={newUserForm.Username}
-                                    onChange={e => setNewUserForm({ ...newUserForm, Username: e.target.value })}
-                                />
+            {
+                addingUser && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100"
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                                    <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
+                                        <UserPlus size={20} />
+                                    </div>
+                                    Add New Member
+                                </h3>
+                                <button onClick={() => !loading && setAddingUser(false)} disabled={loading} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
+                                    <X size={24} />
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Role</label>
-                                    <select
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
-                                        value={newUserForm.Role}
-                                        onChange={e => setNewUserForm({ ...newUserForm, Role: e.target.value })}
-                                    >
-                                        <option value="user">User</option>
-                                        <option value="manager">Manager</option>
-                                        <option value="admin">Admin</option>
-                                    </select>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                                        Full Name / ID <span className="text-slate-300 normal-case tracking-normal ml-1">(e.g. Naman Mishra)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                                        placeholder="Example: Naman Mishra"
+                                        value={newUserForm.Username}
+                                        onChange={e => setNewUserForm({ ...newUserForm, Username: e.target.value })}
+                                    />
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Department</label>
-                                    <div className="relative">
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Role</label>
                                         <select
-                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none appearance-none"
-                                            value={newUserForm.Department}
-                                            onChange={e => setNewUserForm({ ...newUserForm, Department: e.target.value })}
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
+                                            value={newUserForm.Role}
+                                            onChange={e => setNewUserForm({ ...newUserForm, Role: e.target.value })}
                                         >
-                                            <option value="General">General</option>
-                                            {DEPARTMENTS.sort().map(d => (
-                                                <option key={d} value={d}>{d}</option>
-                                            ))}
+                                            <option value="user">User</option>
+                                            <option value="manager">Manager</option>
+                                            <option value="admin">Admin</option>
                                         </select>
-                                        <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400 text-[10px]">▼</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Department</label>
+                                        <div className="relative">
+                                            <select
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none appearance-none"
+                                                value={newUserForm.Department}
+                                                onChange={e => setNewUserForm({ ...newUserForm, Department: e.target.value })}
+                                            >
+                                                <option value="General">General</option>
+                                                {DEPARTMENTS.sort().map(d => (
+                                                    <option key={d} value={d}>{d}</option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400 text-[10px]">▼</div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Mobile Number</label>
-                                <input
-                                    type="tel"
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
-                                    placeholder="10-digit number"
-                                    value={newUserForm.Mobile}
-                                    onChange={e => setNewUserForm({ ...newUserForm, Mobile: e.target.value })}
-                                />
-                            </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Mobile Number</label>
+                                    <input
+                                        type="tel"
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
+                                        placeholder="10-digit number"
+                                        value={newUserForm.Mobile}
+                                        onChange={e => setNewUserForm({ ...newUserForm, Mobile: e.target.value })}
+                                    />
+                                </div>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Default Password</label>
-                                <input
-                                    type="text"
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
-                                    placeholder="Password"
-                                    value={newUserForm.Password}
-                                    onChange={e => setNewUserForm({ ...newUserForm, Password: e.target.value })}
-                                />
-                            </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Default Password</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none"
+                                        placeholder="Password"
+                                        value={newUserForm.Password}
+                                        onChange={e => setNewUserForm({ ...newUserForm, Password: e.target.value })}
+                                    />
+                                </div>
 
-                            <button
-                                onClick={handleAddUser}
-                                disabled={loading || !newUserForm.Username || !newUserForm.Password}
-                                className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black tracking-wide shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all active:scale-[0.98] mt-4 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                {loading ? (
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                ) : (
-                                    <>
-                                        Confirm Registration
-                                        <ArrowRight size={18} />
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
+                                <button
+                                    onClick={handleAddUser}
+                                    disabled={loading || !newUserForm.Username || !newUserForm.Password}
+                                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black tracking-wide shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all active:scale-[0.98] mt-4 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                    {loading ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            Confirm Registration
+                                            <ArrowRight size={18} />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )
+            }
 
             {/* Edit User Modal */}
-            {editingUser && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100"
-                    >
-                        <h3 className="text-xl font-black text-slate-900 mb-6">Edit User</h3>
-                        <div className="space-y-4">
-                            <input className="w-full p-3 border rounded-xl" value={editForm.Mobile} onChange={e => setEditForm({ ...editForm, Mobile: e.target.value })} placeholder="Mobile" />
-                            <input className="w-full p-3 border rounded-xl" value={editForm.Department} onChange={e => setEditForm({ ...editForm, Department: e.target.value })} placeholder="Department" />
-                            <div className="flex gap-4">
-                                <button onClick={() => setEditingUser(null)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
-                                <button onClick={handleSave} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold">Save Changes</button>
+            {
+                editingUser && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100"
+                        >
+                            <h3 className="text-xl font-black text-slate-900 mb-6">Edit User</h3>
+                            <div className="space-y-4">
+                                <input className="w-full p-3 border rounded-xl" value={editForm.Mobile} onChange={e => setEditForm({ ...editForm, Mobile: e.target.value })} placeholder="Mobile" />
+                                <input className="w-full p-3 border rounded-xl" value={editForm.Department} onChange={e => setEditForm({ ...editForm, Department: e.target.value })} placeholder="Department" />
+                                <div className="flex gap-4">
+                                    <button onClick={() => setEditingUser(null)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
+                                    <button onClick={handleSave} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold">Save Changes</button>
+                                </div>
                             </div>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
+                        </motion.div>
+                    </div>
+                )
+            }
 
             {/* Delete Confirmation Modal */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl"
-                    >
-                        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Access?</h3>
-                        <p className="text-slate-500 mb-6 font-medium">Are you sure you want to remove <span className="text-slate-900 font-bold">{deleteConfirm.Username}</span>?</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Cancel</button>
-                            <button onClick={executeDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Yes, Delete</button>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
-        </motion.div>
+            {
+                deleteConfirm && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl"
+                        >
+                            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Access?</h3>
+                            <p className="text-slate-500 mb-6 font-medium">Are you sure you want to remove <span className="text-slate-900 font-bold">{deleteConfirm.Username}</span>?</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors">Cancel</button>
+                                <button onClick={executeDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Yes, Delete</button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )
+            }
+        </motion.div >
     );
 };
 

@@ -9,42 +9,16 @@ import ExtendModal from './ExtendModal';
 import ResolveModal from './ResolveModal';
 import RateModal from './RateModal';
 
-const PerformanceWidget = ({ complaints, user }) => {
+const PerformanceWidget = ({ user, userStats }) => {
+    // Use official stats from backend if available, else fallback to 0
     const stats = useMemo(() => {
-        const role = String(user?.Role || '').toLowerCase();
-        const username = String(user?.Username || '').toLowerCase();
-
-        // 1. Calculate MY Stats (as Resolver)
-        const myResolved = complaints.filter(c =>
-            String(c.ResolvedBy || '').toLowerCase() === username &&
-            (String(c.Status || '').toLowerCase() === 'closed' || String(c.Status || '').toLowerCase() === 'solved')
-        );
-
-        let totalDays = 0;
-        let ratedCount = 0;
-        let totalRating = 0;
-
-        myResolved.forEach(c => {
-            const openDate = new Date(c.Date);
-            const closeDate = new Date(c.ResolvedDate);
-            if (!isNaN(openDate) && !isNaN(closeDate)) {
-                const diffTime = Math.max(0, closeDate - openDate);
-                const diffDays = diffTime / (1000 * 60 * 60 * 24);
-                totalDays += diffDays;
-            }
-            const r = Number(c.Rating);
-            if (r > 0) {
-                totalRating += r;
-                ratedCount++;
-            }
-        });
-
-        const avgDays = myResolved.length ? (totalDays / myResolved.length).toFixed(1) : '0';
-        const avgRating = ratedCount ? (totalRating / ratedCount).toFixed(1) : '-';
-        const efficiency = myResolved.length ? Math.min(100, Math.max(0, (1 / (totalDays / myResolved.length || 1)) * 100)).toFixed(0) : '0';
-
-        return { myResolvedCount: myResolved.length, avgDays, avgRating, efficiency };
-    }, [complaints, user]);
+        if (!userStats) return { myResolvedCount: 0, avgRating: '0.0', efficiency: 0 };
+        return {
+            myResolvedCount: userStats.SolvedCount || 0,
+            avgRating: userStats.AvgRating || '0.0',
+            efficiency: 100 // Placeholder or calculate if needed
+        };
+    }, [userStats]);
 
     const role = (user?.Role || '').toUpperCase().trim();
     if (role === 'ADMIN' || role === 'SUPER_ADMIN') return null;
@@ -61,7 +35,7 @@ const PerformanceWidget = ({ complaints, user }) => {
             <div className="bg-white p-6 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_15px_-3px_rgb(0,0,0,0.04)]">
                 <p className="text-label font-black text-slate-400 mb-4">Avg Speed</p>
                 <div className="flex items-end justify-between">
-                    <h3 className="text-card-value text-slate-900 leading-none">{stats.avgDays}<span className="text-sm font-normal text-slate-400 ml-1">days</span></h3>
+                    <h3 className="text-card-value text-slate-900 leading-none">-<span className="text-sm font-normal text-slate-400 ml-1">days</span></h3>
                     <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 text-slate-400"><Clock size={16} strokeWidth={2.5} /></div>
                 </div>
             </div>
@@ -155,6 +129,39 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState(initialFilter); // Initialize with prop
     const [searchTerm, setSearchTerm] = useState('');
+
+    // NEW: Fetch Ratings & Performance & Journey Logs
+    const [ratingsLog, setRatingsLog] = useState([]);
+    const [transferLogs, setTransferLogs] = useState([]);
+    const [extensionLogs, setExtensionLogs] = useState([]);
+    const [userPerformance, setUserPerformance] = useState(null);
+
+    useEffect(() => {
+        const fetchExtras = async () => {
+            try {
+                // Fetch All Logs in parallel for speed
+                const [rLog, tLog, eLog] = await Promise.all([
+                    sheetsService.getRatings(),
+                    sheetsService.getTransferLogs(),
+                    sheetsService.getExtensionLogs()
+                ]);
+
+                setRatingsLog(rLog);
+                setTransferLogs(tLog);
+                setExtensionLogs(eLog);
+
+                // Fetch User Performance (User_Performance_Ratings)
+                if (user?.Username) {
+                    const pLog = await sheetsService.getUserPerformance();
+                    const myStats = pLog ? pLog.find(p => String(p.StaffName).toLowerCase() === String(user.Username).toLowerCase()) : null;
+                    setUserPerformance(myStats);
+                }
+            } catch (e) {
+                console.error("Error fetching extra data", e);
+            }
+        };
+        fetchExtras();
+    }, [user]);
 
     // Update filter when initialFilter changes (from Dashboard click)
     useEffect(() => {
@@ -274,7 +281,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                 await sheetsService.updateComplaintStatus(
                     ticketId,
                     newStatus,
-                    selectedComplaint.ResolvedBy || user.Username, // Preserve original resolver if rating/closing
+                    action === 'Rate' ? (selectedComplaint.ResolvedBy || '') : user.Username, // Only preserve for Rating, else User is actor
                     data.remark || data.reason || '',
                     data.date || '',
                     data.rating || 0
@@ -395,7 +402,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
 
     return (
         <div className="max-w-7xl mx-auto px-4 pb-32">
-            <PerformanceWidget complaints={complaints} user={user} />
+            <PerformanceWidget user={user} userStats={userPerformance} />
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm mb-6 sticky top-4 z-20 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/80 backdrop-blur-xl">
@@ -548,44 +555,108 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                 </div>
                             </div>
 
-                            {/* Timeline / History */}
-                            {selectedComplaint.History && (
-                                <div className="mt-8">
-                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                        <HistoryIcon size={14} className="text-orange-500" /> Ticket Timeline
-                                    </h4>
-                                    <div className="space-y-6 pl-4 border-l-2 border-slate-100 ml-2">
-                                        {String(selectedComplaint.History).split('\n').filter(Boolean).map((log, i) => {
-                                            const isTransfer = log.includes('TRANSFERRED');
-                                            const isCreation = log.includes('Created');
-                                            const isClosure = log.includes('CLOSED') || log.includes('RESOLVED');
+                            {/* TICKET JOURNEY (NEW FEATURE) */}
+                            <div className="mt-8">
+                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                    <HistoryIcon size={14} className="text-orange-500" /> Ticket Journey
+                                </h4>
+                                <div className="space-y-0 pl-4 border-l-2 border-slate-100 ml-2 relative">
+                                    {(() => {
+                                        // 1. Complaint Creation
+                                        const events = [{
+                                            type: 'created',
+                                            date: new Date(selectedComplaint.Date),
+                                            title: 'Ticket Created',
+                                            subtitle: `Reported by ${selectedComplaint.ReportedBy}`,
+                                            icon: <Plus size={10} />,
+                                            color: 'green'
+                                        }];
 
-                                            return (
-                                                <div key={i} className="relative pl-6">
-                                                    <div className={`absolute -left-[25px] top-0 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center
-                                                        ${isTransfer ? 'border-sky-500 text-sky-500' :
-                                                            isClosure ? 'border-orange-500 text-orange-500' :
-                                                                isCreation ? 'border-green-500 text-green-500' : 'border-slate-300 text-slate-400'}`}>
-                                                        {isTransfer ? <Share2 size={10} /> :
-                                                            isClosure ? <CheckCircle size={10} /> :
-                                                                isCreation ? <Plus size={10} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
-                                                    </div>
-                                                    <div className={`p-3 rounded-xl border transition-all ${isTransfer ? 'bg-sky-50/30 border-sky-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                                                        <p className="text-xs font-bold text-slate-700 leading-relaxed">
-                                                            {log.split(']').length > 1 ? (
-                                                                <>
-                                                                    <span className="text-[10px] text-slate-400 font-mono mr-2">{log.split(']')[0]}]</span>
-                                                                    <span>{log.split(']')[1].trim()}</span>
-                                                                </>
-                                                            ) : log}
-                                                        </p>
-                                                    </div>
+                                        // 2. Transfers
+                                        const transfers = transferLogs.filter(t => String(t.ComplaintID) === String(selectedComplaint.ID));
+                                        transfers.forEach(t => {
+                                            events.push({
+                                                type: 'transfer',
+                                                date: new Date(t.TransferDate || t.Date), // Fallback
+                                                title: 'Department Transfer',
+                                                subtitle: `From ${t.FromDept} to ${t.ToDept} by ${t.TransferredBy}`,
+                                                icon: <Share2 size={10} />,
+                                                color: 'sky'
+                                            });
+                                        });
+
+                                        // 3. Extensions
+                                        const extensions = extensionLogs.filter(e => String(e.ComplaintID) === String(selectedComplaint.ID));
+                                        extensions.forEach(e => {
+                                            events.push({
+                                                type: 'extension',
+                                                date: new Date(e.ExtensionDate || e.Date),
+                                                title: 'Deadline Extended',
+                                                subtitle: `New Target: ${e.NewTargetDate} (Reason: ${e.Reason})`,
+                                                icon: <Clock size={10} />,
+                                                color: 'amber'
+                                            });
+                                        });
+
+                                        // 4. Resolution
+                                        if (selectedComplaint.ResolvedDate) {
+                                            events.push({
+                                                type: 'resolved',
+                                                date: new Date(selectedComplaint.ResolvedDate),
+                                                title: 'Ticket Resolved',
+                                                subtitle: `Resolved by ${selectedComplaint.ResolvedBy}`,
+                                                icon: <CheckCircle size={10} />,
+                                                color: 'orange'
+                                            });
+                                        }
+
+                                        // 5. Ratings
+                                        const rating = ratingsLog.find(r => String(r.ID) === String(selectedComplaint.ID));
+                                        if (rating) {
+                                            events.push({
+                                                type: 'rated',
+                                                date: new Date(rating.Date),
+                                                title: 'Feedback Received',
+                                                subtitle: `${rating.Rating} Stars from ${rating.Reporter}`,
+                                                icon: <Star size={10} />,
+                                                color: 'purple'
+                                            });
+                                        }
+
+                                        // Sort by Date
+                                        events.sort((a, b) => a.date - b.date);
+
+                                        return events.map((ev, i) => (
+                                            <div key={i} className="relative pl-8 py-2 group">
+                                                {/* Timeline Node */}
+                                                <div className={`absolute -left-[21px] top-3 w-4 h-4 rounded-full bg-white border-2 z-10 flex items-center justify-center transition-all group-hover:scale-125
+                                                    ${ev.color === 'green' ? 'border-emerald-500 text-emerald-500 shadow-emerald-100' :
+                                                        ev.color === 'sky' ? 'border-sky-500 text-sky-500 shadow-sky-100' :
+                                                            ev.color === 'amber' ? 'border-amber-500 text-amber-500 shadow-amber-100' :
+                                                                ev.color === 'orange' ? 'border-orange-500 text-orange-500 shadow-orange-100' :
+                                                                    ev.color === 'purple' ? 'border-purple-500 text-purple-500 shadow-purple-100' : 'border-slate-300'}`}>
+                                                    {ev.icon}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
+
+                                                {/* Card */}
+                                                <div className={`p-3 rounded-xl border transition-all hover:shadow-sm ${ev.color === 'green' ? 'bg-emerald-50/50 border-emerald-100' :
+                                                    ev.color === 'sky' ? 'bg-sky-50/50 border-sky-100' :
+                                                        ev.color === 'amber' ? 'bg-amber-50/50 border-amber-100' :
+                                                            ev.color === 'orange' ? 'bg-orange-50/50 border-orange-100' :
+                                                                ev.color === 'purple' ? 'bg-purple-50/50 border-purple-100' : 'bg-slate-50 border-slate-100'}`}>
+                                                    <div className="flex justify-between items-start">
+                                                        <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">{ev.title}</h5>
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-white/50 px-1.5 py-0.5 rounded border border-slate-100">
+                                                            {ev.date.toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-medium text-slate-600 mt-1">{ev.subtitle}</p>
+                                                </div>
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
-                            )}
+                            </div>
 
                             {/* Resolution Details - REVISED UI */}
                             {selectedComplaint.ResolvedBy && (
@@ -605,22 +676,34 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                         </div>
                                         <div>
                                             <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Closed Date</p>
-                                            <p className="font-bold text-slate-800 text-sm">{new Date(selectedComplaint.ResolvedDate).toLocaleDateString()}</p>
+                                            <p className="font-bold text-slate-800 text-sm">{selectedComplaint.ResolvedDate ? new Date(selectedComplaint.ResolvedDate).toLocaleDateString() : 'N/A'}</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Rating Given</p>
                                             <div className="flex items-center gap-0.5">
-                                                {Number(selectedComplaint.Rating) > 0 ? (
-                                                    [1, 2, 3, 4, 5].map(star => (
-                                                        <Star
-                                                            key={star}
-                                                            size={14}
-                                                            className={star <= Number(selectedComplaint.Rating) ? "text-amber-400 fill-amber-400" : "text-amber-200"}
-                                                        />
-                                                    ))
-                                                ) : (
-                                                    <span className="text-xs font-bold text-slate-400">Not Rated</span>
-                                                )}
+                                                {(() => {
+                                                    const rLog = ratingsLog.find(r => String(r.ID) === String(selectedComplaint.ID));
+                                                    const ratingVal = rLog ? Number(rLog.Rating) : Number(selectedComplaint.Rating);
+
+                                                    return ratingVal > 0 ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                                                                <span className="font-black text-amber-600 text-sm">{ratingVal}/5</span>
+                                                            </div>
+                                                            <div className="flex">
+                                                                {[1, 2, 3, 4, 5].map(star => (
+                                                                    <Star
+                                                                        key={star}
+                                                                        size={14}
+                                                                        className={star <= ratingVal ? "text-amber-400 fill-amber-400" : "text-amber-200"}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs font-bold text-slate-400">Not Rated</span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
