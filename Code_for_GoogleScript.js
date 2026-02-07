@@ -268,7 +268,25 @@ function updateComplaintStatus(payload) {
     }
 
     const headers = data[headerRowIndex];
-    const colMap = getColMap(headers);
+    let colMap = getColMap(headers);
+
+    // Self Healing: Ensure 'Rating' and 'Resolved Date' columns exist
+    const essentialCols = ['Rating', 'Resolved Date'];
+    let mappingUpdated = false;
+    essentialCols.forEach(colName => {
+        if (!colMap[colName]) {
+            sheet.getRange(headerRowIndex + 1, sheet.getLastColumn() + 1).setValue(colName);
+            mappingUpdated = true;
+        }
+    });
+
+    if (mappingUpdated) {
+        SpreadsheetApp.flush();
+        data = sheet.getDataRange().getValues();
+        colMap = getColMap(data[headerRowIndex]);
+        // Update headers reference
+    }
+
     if (!colMap.ID) return response('error', 'ID column not found');
 
     let rowIndex = -1;
@@ -323,7 +341,8 @@ function updateComplaintStatus(payload) {
 
         // Resolver assignment
         const existingRes = colMap.ResolvedBy ? String(data[rowIndex - 1][colMap.ResolvedBy - 1] || '').trim() : '';
-        if (colMap.ResolvedBy && (payload.Status === 'Closed' || payload.Status === 'Resolved') && !existingRes) {
+        // Fix: Always update ResolvedBy to the actual person closing the ticket (Final Resolver)
+        if (colMap.ResolvedBy && (payload.Status === 'Closed' || payload.Status === 'Resolved')) {
             sheet.getRange(rowIndex, colMap.ResolvedBy).setValue(payload.ResolvedBy);
         }
 
@@ -469,6 +488,7 @@ function updateUser(p) {
             if (p.Mobile && map.Mobile) sheet.getRange(i + 1, map.Mobile).setValue(p.Mobile);
 
             if (p.Status === 'Active' && map.Mobile) sendAccountApprovalNotification(p.Username, sheet.getRange(i + 1, map.Mobile).getValue());
+            SpreadsheetApp.flush();
             return response('success', 'Updated');
         }
     }
