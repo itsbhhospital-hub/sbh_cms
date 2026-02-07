@@ -198,14 +198,16 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
     const [showSuccess, setShowSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const loadComplaints = async () => {
+    const loadComplaints = async (isRefetch = false) => {
+        if (!isRefetch) setLoading(true);
         try {
-            const data = await sheetsService.getComplaints(true);
+            // Updated to be silent on refetch if needed, but for initial load use spinner
+            const data = await sheetsService.getComplaints(true, isRefetch);
             setComplaints(data);
         } catch (error) {
             console.error("Failed to load complaints", error);
         } finally {
-            setLoading(false);
+            if (!isRefetch) setLoading(false);
         }
     };
 
@@ -235,12 +237,8 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
         if (!ticketId) return alert("Error: Ticket ID is missing.");
 
         const previousComplaints = [...complaints];
-        // Optimistic Logic (unchanged)
-        // ...
 
-        // (Abbreviated for brevity - logic remains same as original file)
-        // Check original file for full handleModalConfirm logic if needed to recreate exact state.
-        // Assuming we keep existing logic unless specifed to change.
+        // Optimistic UI updates could go here...
 
         // ... (API Calls) ...
         setIsSubmitting(true);
@@ -276,15 +274,15 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                 await sheetsService.updateComplaintStatus(
                     ticketId,
                     newStatus,
-                    user.Username,
+                    selectedComplaint.ResolvedBy || user.Username, // Preserve original resolver if rating/closing
                     data.remark || data.reason || '',
                     data.date || '',
                     data.rating || 0
                 );
             }
 
-            // Sync State
-            const updatedList = await sheetsService.getComplaints(true); // Force fetch
+            // Sync State with SILENT refresh (Part 4)
+            const updatedList = await sheetsService.getComplaints(true, true);
             setComplaints(updatedList);
 
             setActionMode(null);
@@ -333,7 +331,11 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
 
             switch (filter) {
                 case 'Open':
-                    result = result.filter(c => (c.Status || '').trim().toLowerCase() === 'open');
+                    // Part 3 Fix: Show Transferred tickets in Active/Open for the target department
+                    result = result.filter(c => {
+                        const s = (c.Status || '').trim().toLowerCase();
+                        return s === 'open' || s === 'transferred';
+                    });
                     break;
                 case 'Pending':
                     result = result.filter(c => {
@@ -414,7 +416,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                             />
                         </div>
                         <button
-                            onClick={() => { setLoading(true); loadComplaints(); }}
+                            onClick={() => loadComplaints(false)}
                             className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 transition-all active:scale-95 shadow-sm"
                             title="Update Data"
                         >
@@ -493,8 +495,8 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
             )}
 
             {detailModalOpen && selectedComplaint && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-none animate-in fade-in duration-150 overflow-y-auto">
-                    <div ref={modalRef} className="bg-white w-full max-w-2xl my-auto rounded-2xl shadow-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 relative border border-slate-200">
+                <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-none animate-in fade-in duration-150">
+                    <div ref={modalRef} className="bg-white w-full max-w-2xl rounded-2xl shadow-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 relative border border-slate-200 max-h-[85vh]">
 
                         {/* Modal Header */}
                         <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 sticky top-0 z-10 backdrop-blur-none">
@@ -512,7 +514,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                             </button>
                         </div>
 
-                        {/* Modal Body */}
+                        {/* Modal Body - Fixed Height Scroll */}
                         <div className="p-6 overflow-y-auto custom-scrollbar space-y-8 flex-1">
                             {/* Key Info Grid */}
                             <div className="grid grid-cols-2 gap-4">
@@ -585,24 +587,46 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                 </div>
                             )}
 
-                            {/* Resolution Info */}
+                            {/* Resolution Details - REVISED UI */}
                             {selectedComplaint.ResolvedBy && (
                                 <div className="bg-orange-50/50 border border-orange-100 p-5 rounded-2xl">
-                                    <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <h4 className="text-xs font-black text-orange-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                                         <CheckCircle size={14} /> Resolution Details
                                     </h4>
-                                    <div className="flex justify-between items-end">
+
+                                    <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-4">
                                         <div>
-                                            <p className="text-xs text-slate-500 uppercase font-bold">Solved By</p>
-                                            <p className="font-black text-slate-800">{selectedComplaint.ResolvedBy}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Reporter</p>
+                                            <p className="font-bold text-slate-800 text-sm">{selectedComplaint.ReportedBy}</p>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-500 uppercase font-bold">Date</p>
-                                            <p className="font-black text-slate-800">{new Date(selectedComplaint.ResolvedDate).toLocaleDateString()}</p>
+                                        <div>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Closed By</p>
+                                            <p className="font-bold text-slate-800 text-sm">{selectedComplaint.ResolvedBy}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Closed Date</p>
+                                            <p className="font-bold text-slate-800 text-sm">{new Date(selectedComplaint.ResolvedDate).toLocaleDateString()}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-wide mb-0.5">Rating Given</p>
+                                            <div className="flex items-center gap-0.5">
+                                                {Number(selectedComplaint.Rating) > 0 ? (
+                                                    [1, 2, 3, 4, 5].map(star => (
+                                                        <Star
+                                                            key={star}
+                                                            size={14}
+                                                            className={star <= Number(selectedComplaint.Rating) ? "text-amber-400 fill-amber-400" : "text-amber-200"}
+                                                        />
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs font-bold text-slate-400">Not Rated</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+
                                     {selectedComplaint.Remark && (
-                                        <div className="mt-4 pt-4 border-t border-orange-100/50">
+                                        <div className="pt-3 border-t border-orange-100/50">
                                             <p className="text-xs text-orange-700/80 font-medium italic">"{selectedComplaint.Remark}"</p>
                                         </div>
                                     )}
@@ -656,7 +680,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                         <button onClick={() => setActionMode('Rate')} className="flex-1 py-4 bg-orange-800 text-white font-black rounded-xl hover:bg-orange-900 transition-all shadow-md active:scale-95 uppercase tracking-widest text-xs">Rate This Service</button>
                                     )}
                                     {String(selectedComplaint.Status).toLowerCase() === 'closed' && canReopen(selectedComplaint) && String(selectedComplaint.ReportedBy || '').toLowerCase() === String(user.Username || '').toLowerCase() && (
-                                        <button onClick={() => setActionMode('Re-open')} className="flex-1 py-3 bg-white text-rose-600 font-bold rounded-xl border border-rose-100 hover:bg-rose-50 transition-all shadow-sm">Re-open Ticket</button>
+                                        <button onClick={() => setActionMode('Re-open')} className="flex-1 py-3 bg-white text-rose-600 font-bold rounded-xl border border-rose-100 hover:bg-rose-100 hover:bg-rose-50 transition-all shadow-sm">Re-open Ticket</button>
                                     )}
                                     {user.Role === 'admin' && selectedComplaint.Status === 'Open' && (
                                         <button onClick={() => setActionMode('Force Close')} className="w-full py-3 mt-2 bg-rose-50 text-rose-600 font-black rounded-xl border border-rose-200 hover:bg-rose-100 transition-all shadow-sm">Force Close (Admin)</button>

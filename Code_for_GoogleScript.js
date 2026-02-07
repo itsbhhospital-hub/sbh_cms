@@ -340,6 +340,7 @@ function updateComplaintStatus(payload) {
 
             let resolver = colMap.ResolvedBy ? data[rowIndex - 1][colMap.ResolvedBy - 1] : '';
             logRating({ ID: payload.ID, Rating: payload.Rating, Remark: payload.Remark, Resolver: resolver || payload.ResolvedBy, Reporter: payload.ResolvedBy });
+            updateUserMetrics(resolver || payload.ResolvedBy); // Fix: Update metrics immediately after rating
         }
 
         // Finalize Dates

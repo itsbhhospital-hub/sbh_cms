@@ -77,7 +77,7 @@ const Sidebar = () => {
             {/* Sidebar View */}
             <aside
                 style={{ '--sidebar-offset': mobileOpen ? '0px' : (collapsed ? '5rem' : '18rem') }}
-                className={`fixed md:sticky top-0 left-0 z-[150] h-screen bg-[var(--sidebar-bg)] border-r border-green-200/50 flex flex-col transition-all duration-300 ease-in-out shadow-[10px_0_40px_-15px_rgba(0,0,0,0.05)]
+                className={`fixed md:sticky top-0 left-0 z-[150] h-[100dvh] bg-[var(--sidebar-bg)] border-r border-green-200/50 flex flex-col transition-all duration-300 ease-in-out shadow-[10px_0_40px_-15px_rgba(0,0,0,0.05)]
                 ${mobileOpen ? 'translate-x-0 w-[80%] max-w-[300px]' : '-translate-x-full md:translate-x-0'}
                 ${collapsed ? 'md:w-20' : 'md:w-72'}`}
             >

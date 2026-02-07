@@ -147,6 +147,7 @@ const WorkReport = () => {
                                 <p className="text-label text-orange-400 uppercase mb-1 tracking-widest">Efficiency</p>
                                 <div className="text-card-value font-black text-amber-400 flex items-center justify-end gap-2">
                                     {selectedUser.stats.avgRating || '-'} <Star fill="currentColor" size={32} />
+                                    <span className="text-xs text-orange-300 ml-1">({selectedUser.stats.ratingCount} reviews)</span>
                                 </div>
                             </div>
                         </div>

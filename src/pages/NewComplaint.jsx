@@ -24,9 +24,9 @@ const NewComplaint = () => {
 
             <div className="mb-10">
                 <h1 className="text-page-title text-slate-900 tracking-tight font-black">Ticket Provisioning</h1>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-100 mt-3 shadow-sm">
-                    <Activity size={14} className="text-orange-600" />
-                    <span className="text-[11px] font-black text-orange-700 tracking-[0.15em] uppercase">Strategic Service Deployment</span>
+                <div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Hospital Complaint Registration</h1>
+                    <p className="text-slate-500 font-medium">Submit your service request below</p>
                 </div>
             </div>
 

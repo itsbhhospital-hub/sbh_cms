@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { sheetsService } from '../services/googleSheets';
 import ComplaintList from '../components/ComplaintList';
+import ActiveUsersModal from '../components/ActiveUsersModal';
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle, AlertCircle, Clock, Plus, History, Shield, Users, Share2, Timer, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -19,6 +20,7 @@ const Dashboard = () => {
     });
     const [reopenedTickets, setReopenedTickets] = useState([]);
     const [showReopenModal, setShowReopenModal] = useState(false);
+    const [showActiveStaffModal, setShowActiveStaffModal] = useState(false);
     const [activeFilter, setActiveFilter] = useState('All'); // For click-to-filter
 
     const isSuperAdmin = user?.Role === 'SUPER_ADMIN';
@@ -109,8 +111,11 @@ const Dashboard = () => {
     };
 
     const handleCardClick = (filterType) => {
-        setActiveFilter(filterType);
-        // Dispatch custom event or just let prop update trigger re-render in ComplaintList
+        if (filterType === 'Active Staff' && isAdmin) {
+            setShowActiveStaffModal(true);
+        } else {
+            setActiveFilter(filterType);
+        }
     };
 
     const StatCard = ({ icon: Icon, title, value, colorClass, bgClass, borderClass, delay, filterType }) => (
@@ -120,7 +125,7 @@ const Dashboard = () => {
             transition={{ delay, duration: 0.3 }}
             onClick={() => handleCardClick(filterType)}
             className={`flex flex-col justify-between p-6 rounded-2xl bg-white border cursor-pointer relative overflow-hidden group 
-                ${activeFilter === filterType ? 'ring-2 ring-offset-2 ring-orange-500 shadow-lg' : 'border-slate-100 shadow-[0_2px_15px_-3px_rgb(0,0,0,0.04)]'} 
+                ${activeFilter === filterType && filterType !== 'Active Staff' ? 'ring-2 ring-offset-2 ring-orange-500 shadow-lg' : 'border-slate-100 shadow-[0_2px_15px_-3px_rgb(0,0,0,0.04)]'} 
                 hover:shadow-lg transition-all active:scale-[0.98]`}
         >
             <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass}`}>
@@ -131,7 +136,7 @@ const Dashboard = () => {
                 <div className={`p-2.5 rounded-xl ${bgClass} ${colorClass}`}>
                     <Icon size={22} />
                 </div>
-                {activeFilter === filterType && (
+                {activeFilter === filterType && filterType !== 'Active Staff' && (
                     <div className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-in fade-in">Active</div>
                 )}
             </div>
@@ -143,7 +148,12 @@ const Dashboard = () => {
     );
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 pb-32">
+        <div className="max-w-[100vw] overflow-x-hidden md:max-w-7xl mx-auto md:px-4 px-2 py-4 md:py-8 space-y-6 md:space-y-8 pb-32">
+            <ActiveUsersModal
+                isOpen={showActiveStaffModal}
+                onClose={() => setShowActiveStaffModal(false)}
+            />
+
             {/* Re-open Alert Warning */}
             {showReopenModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
@@ -183,18 +193,18 @@ const Dashboard = () => {
             )}
 
             {/* Enterprise Header */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-2">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-6 mb-2">
                 <div>
-                    <h1 className="text-page-title text-slate-900 tracking-tight flex items-center gap-3">
+                    <h1 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight flex flex-wrap items-center gap-2 md:gap-3">
                         Complaint Management
-                        <span className="px-2 py-0.5 rounded bg-orange-50 border border-orange-100 text-small-info font-bold text-orange-600 tracking-wide">
+                        <span className="px-2 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] md:text-xs font-bold text-orange-600 tracking-wide whitespace-nowrap">
                             Hospital Unit
                         </span>
                     </h1>
-                    <p className="text-table-data text-slate-500 font-bold mt-1.5 opacity-60 tracking-tight">System Resolution Monitor v4.0</p>
+                    <p className="text-xs md:text-sm font-bold text-slate-500 mt-1.5 opacity-60 tracking-tight">System Resolution Monitor v4.0</p>
                 </div>
-                <div className="flex gap-3">
-                    <Link to="/new-complaint" className="px-6 py-3 bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-xl hover:shadow-orange-500/20 rounded-xl text-small-info font-bold tracking-wide shadow-lg shadow-orange-500/10 transition-all active:scale-[0.98] flex items-center gap-2">
+                <div className="w-full md:w-auto">
+                    <Link to="/new-complaint" className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-xl hover:shadow-orange-500/20 rounded-xl text-sm font-bold tracking-wide shadow-lg shadow-orange-500/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                         <Plus size={16} strokeWidth={3} /> Create Ticket
                     </Link>
                 </div>
@@ -210,7 +220,7 @@ const Dashboard = () => {
             )}
 
             {/* Stats Grid - Role Based */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
                 <StatCard icon={AlertCircle} title="Open" value={stats.open} bgClass="bg-amber-100" colorClass="text-amber-700" delay={0} filterType="Open" />
 
                 {/* Pending Only shown if non-zero or specific logic, but requested to show card */}
@@ -233,7 +243,7 @@ const Dashboard = () => {
             </div>
 
             {/* List Container - Passing Filter Prop */}
-            <div className="mt-8">
+            <div className="mt-4 md:mt-8">
                 <ComplaintList initialFilter={activeFilter} key={activeFilter} />
             </div>
         </div>
@@ -241,4 +251,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
