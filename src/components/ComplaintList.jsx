@@ -235,8 +235,9 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
         const isTransferred = (complaint.Status || '').toLowerCase() === 'transferred';
 
         if (isTransferred) {
-            if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-                // Do nothing for normal users
+            const isMyDept = String(user.Department || '').toLowerCase() === String(complaint.Department || '').toLowerCase();
+            if (role !== 'ADMIN' && role !== 'SUPER_ADMIN' && !isMyDept) {
+                // Do nothing for users who don't belong to the active department of the ticket
                 return;
             }
         }

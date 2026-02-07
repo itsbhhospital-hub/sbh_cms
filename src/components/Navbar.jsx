@@ -165,312 +165,319 @@ const Navbar = () => {
     if (!user) return null;
 
     return (
-        <nav className="sticky top-0 z-[100] w-full px-4 py-2 md:px-6 md:py-3 bg-white border-b border-slate-200 shadow-sm transition-all duration-300">
-            <div className="max-w-7xl mx-auto flex justify-between items-center gap-4">
+        <nav className="sticky top-0 z-[100] w-full bg-white shadow-sm transition-all duration-300 p-2">
+            {/* Gradient Border Container */}
+            <div className="w-full rounded-2xl p-[2px] bg-gradient-to-r from-orange-400 via-pink-500 to-rose-500 shadow-sm">
+                <div className="bg-white w-full rounded-2xl">
+                    <div className="px-4 py-2 md:px-6 md:py-3 max-w-7xl mx-auto flex justify-between items-center gap-4">
 
-                {/* Brand Logo - Left Aligned */}
-                <div className="flex-1 items-center hidden md:flex">
-                    <img src="/sbh_wide.jpg" alt="SBH Logo" className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity" />
-                </div>
-
-                <div className="flex items-center gap-4">
-
-                    <div className="flex items-center gap-3">
-                        {/* Brand Logo - Mobile */}
-                        <div className="md:hidden flex items-center">
-                            <img src="/sbh_wide.jpg" alt="Logo" className="h-6 w-auto object-contain mr-1" />
+                        {/* Brand Logo - Left Aligned */}
+                        <div className="flex-1 items-center hidden md:flex">
+                            <img src="/sbh_wide.jpg" alt="SBH Logo" className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity" />
                         </div>
 
-                        <button
-                            onClick={() => setMobileOpen(true)}
-                            className="md:hidden p-2 text-slate-500 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-all"
-                        >
-                            <Menu size={22} />
-                        </button>
-                    </div>
+                        <div className="flex items-center gap-4">
 
-                    <div className={`
+                            <div className="flex items-center gap-3">
+                                {/* Brand Logo - Mobile */}
+                                <div className="md:hidden flex items-center">
+                                    <img src="/sbh_wide.jpg" alt="Logo" className="h-6 w-auto object-contain mr-1" />
+                                </div>
+
+                                <button
+                                    onClick={() => setMobileOpen(true)}
+                                    className="md:hidden p-2 text-slate-500 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-all"
+                                >
+                                    <Menu size={22} />
+                                </button>
+                            </div>
+
+                            <div className={`
                     flex items-center gap-3 px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm
                     ${timerStatus === 'critical' ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' :
-                            timerStatus === 'warning' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                'bg-orange-50 text-orange-600 border-orange-100'}
+                                    timerStatus === 'warning' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                        'bg-orange-50 text-orange-600 border-orange-100'}
                 `}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${timerStatus === 'critical' ? 'bg-red-500' : 'bg-orange-500'} animate-pulse`}></div>
-                        <p className="text-small-info font-bold tracking-wide opacity-60 hidden sm:block">Session</p>
-                        <p className={`font-mono font-bold text-xs sm:text-[13px] ${timerStatus === 'critical' ? 'text-red-700' : 'text-orange-700'}`}>
-                            {timeLeft}
-                        </p>
-                    </div>
+                                <div className={`w-1.5 h-1.5 rounded-full ${timerStatus === 'critical' ? 'bg-red-500' : 'bg-orange-500'} animate-pulse`}></div>
+                                <p className="text-small-info font-bold tracking-wide opacity-60 hidden sm:block">Session</p>
+                                <p className={`font-mono font-bold text-xs sm:text-[13px] ${timerStatus === 'critical' ? 'text-red-700' : 'text-orange-700'}`}>
+                                    {timeLeft}
+                                </p>
+                            </div>
 
-                    {/* Notification Bell */}
-                    <div className="relative z-50" ref={notifRef}>
-                        <button
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-orange-700 hover:bg-orange-50 shadow-sm transition-all relative"
-                        >
-                            <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
-                            {isPolling && (
-                                <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></span>
-                            )}
-                            {notifications.length > 0 && (
-                                <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-                            )}
-                        </button>
-
-                        <AnimatePresence>
-                            {showNotifications && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 p-4 overflow-hidden z-[200]"
+                            {/* Notification Bell */}
+                            <div className="relative z-50" ref={notifRef}>
+                                <button
+                                    onClick={() => setShowNotifications(!showNotifications)}
+                                    className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-orange-700 hover:bg-orange-50 shadow-sm transition-all relative"
                                 >
-                                    <h4 className="font-black text-slate-800 mb-3 px-2 flex justify-between items-center">
-                                        Notifications <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-full text-slate-500">{notifications.length}</span>
-                                    </h4>
-                                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                                        {notifications.length === 0 ? (
-                                            <p className="text-center text-xs font-bold text-slate-400 py-4">No new notifications</p>
-                                        ) : (
-                                            notifications.map((n, i) => (
-                                                <div
-                                                    key={i}
-                                                    onClick={() => {
-                                                        setShowNotifications(false);
-                                                        navigate(`/my-complaints?ticketId=${n.id}`);
-                                                    }}
-                                                    className="p-3 bg-slate-50 rounded-xl hover:bg-orange-50 transition-colors border border-slate-100 cursor-pointer group relative"
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.type === 'alert' ? 'bg-amber-500' : n.type === 'success' ? 'bg-orange-500' : 'bg-sky-500'}`}></div>
-                                                        <div>
-                                                            <p className="text-xs font-bold text-slate-700 group-hover:text-orange-700 transition-colors leading-tight mb-1">{n.msg}</p>
-                                                            <p className="text-small-info font-bold text-slate-400 font-mono flex items-center gap-1">
-                                                                {formatIST(n.time)}
-                                                            </p>
+                                    <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
+                                    {isPolling && (
+                                        <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></span>
+                                    )}
+                                    {notifications.length > 0 && (
+                                        <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
+                                    )}
+                                </button>
+
+                                <AnimatePresence>
+                                    {showNotifications && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 p-4 overflow-hidden z-[200]"
+                                        >
+                                            <h4 className="font-black text-slate-800 mb-3 px-2 flex justify-between items-center">
+                                                Notifications <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-full text-slate-500">{notifications.length}</span>
+                                            </h4>
+                                            <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                                {notifications.length === 0 ? (
+                                                    <p className="text-center text-xs font-bold text-slate-400 py-4">No new notifications</p>
+                                                ) : (
+                                                    notifications.map((n, i) => (
+                                                        <div
+                                                            key={i}
+                                                            onClick={() => {
+                                                                setShowNotifications(false);
+                                                                navigate(`/my-complaints?ticketId=${n.id}`);
+                                                            }}
+                                                            className="p-3 bg-slate-50 rounded-xl hover:bg-orange-50 transition-colors border border-slate-100 cursor-pointer group relative"
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.type === 'alert' ? 'bg-amber-500' : n.type === 'success' ? 'bg-orange-500' : 'bg-sky-500'}`}></div>
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-slate-700 group-hover:text-orange-700 transition-colors leading-tight mb-1">{n.msg}</p>
+                                                                    <p className="text-small-info font-bold text-slate-400 font-mono flex items-center gap-1">
+                                                                        {formatIST(n.time)}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
+                                                    ))
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            <div className="relative" ref={dropdownRef}>
+                                {/* User Profile Button */}
+                                <button
+                                    onClick={() => setIsOpen(!isOpen)}
+                                    className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-1.5 rounded-xl shadow-sm hover:shadow-md transition-all active:scale-[0.98] group"
+                                >
+                                    <div className="flex flex-col items-end hidden sm:flex text-right">
+                                        <span className="text-table-data font-black text-slate-800 leading-tight">
+                                            {String(user.Username)}
+                                        </span>
+                                        <span className="text-[10px] font-black text-orange-600 tracking-[0.05em] leading-none mt-1 opacity-70">
+                                            {user.Role === 'SUPER_ADMIN' ? 'System Master' : user.Role}
+                                        </span>
                                     </div>
-                                </motion.div>
+                                    <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-105">
+                                        <User size={20} strokeWidth={2.5} />
+                                    </div>
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                <AnimatePresence>
+                                    {isOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 p-3 overflow-hidden"
+                                        >
+                                            <div className="space-y-1">
+                                                <button
+                                                    onClick={() => { setShowProfile(true); setIsOpen(false); }}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-orange-50 text-slate-600 hover:text-orange-700 transition-all group/item"
+                                                >
+                                                    <div className="bg-slate-100 group-hover/item:bg-orange-100 p-2 rounded-xl transition-colors">
+                                                        <Shield size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">View Profile</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { setShowPasswordModal(true); setIsOpen(false); }}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-orange-50 text-slate-600 hover:text-orange-700 transition-all group/item"
+                                                >
+                                                    <div className="bg-slate-100 group-hover/item:bg-orange-100 p-2 rounded-xl transition-colors">
+                                                        <Key size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Change Password</span>
+                                                </button>
+
+                                                <div className="h-px bg-slate-100 my-2 mx-2"></div>
+
+                                                <button
+                                                    onClick={logout}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-all group/item"
+                                                >
+                                                    <div className="bg-rose-50 group-hover/item:bg-rose-100 p-2 rounded-xl transition-colors">
+                                                        <LogOut size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Logout</span>
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+
+                        {/* Profile Modal */}
+                        <AnimatePresence>
+                            {showProfile && (
+                                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowProfile(false)}>
+                                    <motion.div
+                                        initial={{ scale: 0.9, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.9, opacity: 0 }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden border border-emerald-50 shadow-2xl"
+                                    >
+                                        <button onClick={() => setShowProfile(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all border border-slate-100">
+                                            <X size={20} />
+                                        </button>
+
+                                        <div className="w-24 h-24 bg-orange-700 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-orange-200">
+                                            <User size={40} strokeWidth={2} />
+                                        </div>
+
+                                        <h3 className="text-page-title text-slate-900 text-center mb-1">{user.Username}</h3>
+                                        <p className="text-orange-600 font-bold text-small-info text-center tracking-wide mb-8">Account Profile</p>
+
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                                <Building2 className="text-slate-400" size={20} />
+                                                <div>
+                                                    <p className="text-small-info font-bold text-slate-400 tracking-wide leading-none mb-1">Affiliation</p>
+                                                    <p className="text-slate-600 font-bold text-forms">{user.Department || 'N/A'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                                                <Phone className="text-slate-400" size={20} />
+                                                <div>
+                                                    <p className="text-label font-bold text-slate-400 tracking-tight leading-none mb-1">Mobile</p>
+                                                    <p className="text-slate-800 font-bold">{user.Mobile || 'N/A'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                                <Shield className="text-slate-400" size={18} />
+                                                <div>
+                                                    <p className="text-small-info font-bold text-slate-400 tracking-wide leading-none mb-1.5">System Privilege</p>
+                                                    <p className="text-emerald-600 font-bold text-small-info tracking-wide">
+                                                        {user.Role === 'SUPER_ADMIN' ? 'System Master' : user.Role}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                </div>
                             )}
                         </AnimatePresence>
-                    </div>
 
-                    <div className="relative" ref={dropdownRef}>
-                        {/* User Profile Button */}
-                        <button
-                            onClick={() => setIsOpen(!isOpen)}
-                            className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-1.5 rounded-xl shadow-sm hover:shadow-md transition-all active:scale-[0.98] group"
-                        >
-                            <div className="flex flex-col items-end hidden sm:flex text-right">
-                                <span className="text-table-data font-black text-slate-800 leading-tight">
-                                    {String(user.Username)}
-                                </span>
-                                <span className="text-[10px] font-black text-orange-600 tracking-[0.05em] leading-none mt-1 opacity-70">
-                                    {user.Role === 'SUPER_ADMIN' ? 'System Master' : user.Role}
-                                </span>
-                            </div>
-                            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-105">
-                                <User size={20} strokeWidth={2.5} />
-                            </div>
-                        </button>
-
-                        {/* Dropdown Menu */}
+                        {/* Change Password Modal */}
                         <AnimatePresence>
-                            {isOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 p-3 overflow-hidden"
-                                >
-                                    <div className="space-y-1">
-                                        <button
-                                            onClick={() => { setShowProfile(true); setIsOpen(false); }}
-                                            className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-orange-50 text-slate-600 hover:text-orange-700 transition-all group/item"
-                                        >
-                                            <div className="bg-slate-100 group-hover/item:bg-orange-100 p-2 rounded-xl transition-colors">
-                                                <Shield size={18} />
-                                            </div>
-                                            <span className="font-bold text-sm">View Profile</span>
-                                        </button>
+                            {showPasswordModal && (
+                                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)}>
+                                    <motion.div
+                                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden shadow-2xl"
+                                    >
+                                        {!passSuccess ? (
+                                            <>
+                                                <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                                    <Key size={28} />
+                                                </div>
 
-                                        <button
-                                            onClick={() => { setShowPasswordModal(true); setIsOpen(false); }}
-                                            className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-orange-50 text-slate-600 hover:text-orange-700 transition-all group/item"
-                                        >
-                                            <div className="bg-slate-100 group-hover/item:bg-orange-100 p-2 rounded-xl transition-colors">
-                                                <Key size={18} />
-                                            </div>
-                                            <span className="font-bold text-sm">Change Password</span>
-                                        </button>
+                                                <h3 className="text-2xl font-black text-slate-800 text-center mb-1 leading-tight">Pass Management</h3>
+                                                <p className="text-orange-600 font-black text-label text-center tracking-wide mb-8">Security Update</p>
 
-                                        <div className="h-px bg-slate-100 my-2 mx-2"></div>
+                                                <form onSubmit={handleChangePassword} className="space-y-4">
+                                                    <div className="space-y-1">
+                                                        <label className="text-label font-black text-slate-400 ml-1">Current Password</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type={showPass ? "text" : "password"}
+                                                                required
+                                                                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold transition-all"
+                                                                value={passForm.current}
+                                                                onChange={e => setPassForm({ ...passForm, current: e.target.value })}
+                                                            />
+                                                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-4 text-slate-400">
+                                                                {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                                                            </button>
+                                                        </div>
+                                                    </div>
 
-                                        <button
-                                            onClick={logout}
-                                            className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-all group/item"
-                                        >
-                                            <div className="bg-rose-50 group-hover/item:bg-rose-100 p-2 rounded-xl transition-colors">
-                                                <LogOut size={18} />
+                                                    <div className="space-y-1">
+                                                        <label className="text-label font-black text-slate-400 ml-1">New Password</label>
+                                                        <input
+                                                            type="password"
+                                                            required
+                                                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+                                                            value={passForm.new}
+                                                            onChange={e => setPassForm({ ...passForm, new: e.target.value })}
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-label font-black text-slate-400 ml-1">Confirm New Password</label>
+                                                        <input
+                                                            type="password"
+                                                            required
+                                                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+                                                            value={passForm.confirm}
+                                                            onChange={e => setPassForm({ ...passForm, confirm: e.target.value })}
+                                                        />
+                                                    </div>
+
+                                                    {passError && <p className="text-rose-500 text-xs font-bold text-center">{passError}</p>}
+
+                                                    <div className="flex gap-3 pt-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setShowPasswordModal(false); setPassError(''); }}
+                                                            className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            type="submit"
+                                                            disabled={isChanging}
+                                                            className="flex-2 px-8 py-4 bg-orange-700 text-white font-black rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-800 transition-all active:scale-95 disabled:opacity-50 tracking-widest text-xs"
+                                                        >
+                                                            {isChanging ? 'Updating...' : 'Update'}
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </>
+                                        ) : (
+                                            <div className="py-10 text-center animate-in zoom-in duration-300">
+                                                <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                                    <Check size={40} strokeWidth={3} />
+                                                </div>
+                                                <h3 className="text-2xl font-black text-slate-800 mb-2">Password Updated!</h3>
+                                                <p className="text-slate-500 font-medium">System security reinforced.<br />Logging out for safety...</p>
                                             </div>
-                                            <span className="font-bold text-sm">Logout</span>
-                                        </button>
-                                    </div>
-                                </motion.div>
+                                        )}
+                                    </motion.div>
+                                </div>
                             )}
                         </AnimatePresence>
                     </div>
                 </div>
-
-                {/* Profile Modal */}
-                <AnimatePresence>
-                    {showProfile && (
-                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowProfile(false)}>
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.9, opacity: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden border border-emerald-50 shadow-2xl"
-                            >
-                                <button onClick={() => setShowProfile(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all border border-slate-100">
-                                    <X size={20} />
-                                </button>
-
-                                <div className="w-24 h-24 bg-orange-700 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-orange-200">
-                                    <User size={40} strokeWidth={2} />
-                                </div>
-
-                                <h3 className="text-page-title text-slate-900 text-center mb-1">{user.Username}</h3>
-                                <p className="text-orange-600 font-bold text-small-info text-center tracking-wide mb-8">Account Profile</p>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                                        <Building2 className="text-slate-400" size={20} />
-                                        <div>
-                                            <p className="text-small-info font-bold text-slate-400 tracking-wide leading-none mb-1">Affiliation</p>
-                                            <p className="text-slate-600 font-bold text-forms">{user.Department || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                                        <Phone className="text-slate-400" size={20} />
-                                        <div>
-                                            <p className="text-label font-bold text-slate-400 tracking-tight leading-none mb-1">Mobile</p>
-                                            <p className="text-slate-800 font-bold">{user.Mobile || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                                        <Shield className="text-slate-400" size={18} />
-                                        <div>
-                                            <p className="text-small-info font-bold text-slate-400 tracking-wide leading-none mb-1.5">System Privilege</p>
-                                            <p className="text-emerald-600 font-bold text-small-info tracking-wide">
-                                                {user.Role === 'SUPER_ADMIN' ? 'System Master' : user.Role}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
-
-                {/* Change Password Modal */}
-                <AnimatePresence>
-                    {showPasswordModal && (
-                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)}>
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full relative overflow-hidden shadow-2xl"
-                            >
-                                {!passSuccess ? (
-                                    <>
-                                        <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                            <Key size={28} />
-                                        </div>
-
-                                        <h3 className="text-2xl font-black text-slate-800 text-center mb-1 leading-tight">Pass Management</h3>
-                                        <p className="text-orange-600 font-black text-label text-center tracking-wide mb-8">Security Update</p>
-
-                                        <form onSubmit={handleChangePassword} className="space-y-4">
-                                            <div className="space-y-1">
-                                                <label className="text-label font-black text-slate-400 ml-1">Current Password</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type={showPass ? "text" : "password"}
-                                                        required
-                                                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold transition-all"
-                                                        value={passForm.current}
-                                                        onChange={e => setPassForm({ ...passForm, current: e.target.value })}
-                                                    />
-                                                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-4 text-slate-400">
-                                                        {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <label className="text-label font-black text-slate-400 ml-1">New Password</label>
-                                                <input
-                                                    type="password"
-                                                    required
-                                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
-                                                    value={passForm.new}
-                                                    onChange={e => setPassForm({ ...passForm, new: e.target.value })}
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <label className="text-label font-black text-slate-400 ml-1">Confirm New Password</label>
-                                                <input
-                                                    type="password"
-                                                    required
-                                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
-                                                    value={passForm.confirm}
-                                                    onChange={e => setPassForm({ ...passForm, confirm: e.target.value })}
-                                                />
-                                            </div>
-
-                                            {passError && <p className="text-rose-500 text-xs font-bold text-center">{passError}</p>}
-
-                                            <div className="flex gap-3 pt-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { setShowPasswordModal(false); setPassError(''); }}
-                                                    className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    type="submit"
-                                                    disabled={isChanging}
-                                                    className="flex-2 px-8 py-4 bg-orange-700 text-white font-black rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-800 transition-all active:scale-95 disabled:opacity-50 tracking-widest text-xs"
-                                                >
-                                                    {isChanging ? 'Updating...' : 'Update'}
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </>
-                                ) : (
-                                    <div className="py-10 text-center animate-in zoom-in duration-300">
-                                        <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                                            <Check size={40} strokeWidth={3} />
-                                        </div>
-                                        <h3 className="text-2xl font-black text-slate-800 mb-2">Password Updated!</h3>
-                                        <p className="text-slate-500 font-medium">System security reinforced.<br />Logging out for safety...</p>
-                                    </div>
-                                )}
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
             </div>
+        </div>
+            </div >
         </nav >
     );
 };
