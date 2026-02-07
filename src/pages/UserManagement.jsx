@@ -149,7 +149,7 @@ const UserManagement = () => {
                         User Directory
                     </h1>
                     <p className="text-table-data text-slate-500 font-bold mt-1 ml-1">
-                        System Registry: <span className="text-slate-800">{users.length} Records</span>
+                        System Registry: <span className="text-slate-800">{users.length} Users</span>
                     </p>
                 </div>
 
@@ -178,7 +178,7 @@ const UserManagement = () => {
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse table-compact">
+                    <table className="w-full text-left border-collapse table-compact min-w-[800px]">
                         <thead>
                             <tr className="text-table-header text-slate-500 tracking-wide font-bold">
                                 <th className="px-6 py-4">Identity</th>

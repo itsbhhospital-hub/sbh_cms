@@ -14,52 +14,52 @@ const GlobalLoader = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-[2px]"
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/10 backdrop-blur-sm"
                 >
-                    <div className="relative flex items-center justify-center">
-                        {/* Outer Ring 1 - Soft Green */}
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                            className="absolute w-32 h-32 rounded-full border border-emerald-100 border-t-emerald-400"
-                        />
+                    <div className="relative flex flex-col items-center justify-center">
+                        {/* Medical/Tech Pulse Effect */}
+                        <div className="relative">
+                            {/* Logo Image */}
+                            <motion.img
+                                src="/sbh_logo.png"
+                                alt="Loading..."
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                className="w-16 h-16 md:w-20 md:h-20 object-contain relative z-10 drop-shadow-xl"
+                            />
 
-                        {/* Outer Ring 2 - Orange Accent (Counter Rotation) */}
-                        <motion.div
-                            animate={{ rotate: -360 }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                            className="absolute w-24 h-24 rounded-full border border-transparent border-b-orange-400/50"
-                        />
+                            {/* Rotating 'Iris' Rings (Eye Hospital Theme) */}
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-0 -m-4 border border-emerald-500/30 rounded-full border-dashed"
+                            />
 
-                        {/* Inner Pulse Circle */}
-                        <motion.div
-                            animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            className="absolute w-20 h-20 bg-emerald-50 rounded-full blur-xl"
-                        />
-
-                        {/* Text Container */}
-                        <div className="relative z-10 flex flex-col items-center">
-                            <h1 className="text-3xl font-black tracking-tighter text-slate-800">SBH</h1>
-                            <div className="flex gap-1 mt-1">
-                                <motion.div
-                                    animate={{ y: [0, -4, 0] }}
-                                    transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                                    className="w-1.5 h-1.5 bg-orange-500 rounded-full"
-                                />
-                                <motion.div
-                                    animate={{ y: [0, -4, 0] }}
-                                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                                    className="w-1.5 h-1.5 bg-emerald-500 rounded-full"
-                                />
-                                <motion.div
-                                    animate={{ y: [0, -4, 0] }}
-                                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                                    className="w-1.5 h-1.5 bg-slate-400 rounded-full"
-                                />
-                            </div>
+                            {/* Expanding Life Ripples (Gynec/Life Theme) */}
+                            <motion.div
+                                animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                                className="absolute inset-0 bg-emerald-400/20 rounded-full -z-10"
+                            />
+                            <motion.div
+                                animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
+                                className="absolute inset-0 bg-emerald-400/10 rounded-full -z-10"
+                            />
                         </div>
+
+                        {/* Loading Text */}
+                        <motion.p
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="mt-6 text-emerald-800 font-bold text-xs tracking-[0.2em] uppercase"
+                        >
+                            Loading
+                        </motion.p>
                     </div>
                 </motion.div>
             )}

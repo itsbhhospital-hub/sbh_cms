@@ -93,7 +93,7 @@ const CaseTransfer = () => {
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse table-compact">
+                    <table className="w-full text-left border-collapse table-compact min-w-[900px]">
                         <thead>
                             <tr className="text-table-header text-slate-500 tracking-wide font-bold">
                                 <th className="px-6 py-4">Ticket</th>

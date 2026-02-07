@@ -1,37 +1,31 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
-import GlobalLoader from './components/GlobalLoader';
 import { LayoutProvider } from './context/LayoutContext';
+import GlobalLoader from './components/GlobalLoader';
+import Sidebar from './components/Sidebar';
+import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
 import NewComplaint from './pages/NewComplaint';
 import MyComplaints from './pages/MyComplaints';
-import WorkReport from './pages/WorkReport'; // NEW
-import SolvedByMe from './pages/SolvedByMe'; // NEW
-import CaseTransfer from './pages/CaseTransfer'; // NEW
-import ExtendedCases from './pages/ExtendedCases'; // NEW
-import sbhBg from './assets/sbh.png'; // Global Background Image
+import WorkReport from './pages/WorkReport';
+import SolvedByMe from './pages/SolvedByMe';
+import CaseTransfer from './pages/CaseTransfer';
+import ExtendedCases from './pages/ExtendedCases';
 
 const ProtectedRoute = ({ children }) => {
   const auth = useAuth();
-  if (!auth) return <div>Initializing...</div>; // Safety check
   const { user, loading } = auth;
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-10 h-10 border-4 border-slate-100 border-t-orange-600 rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <GlobalLoader />;
   if (!user) return <Navigate to="/login" />;
   return children;
 };
-
-import Sidebar from './components/Sidebar';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 
 // Layout component with Sidebar
 // Removed bg-slate-50 to let global background show
@@ -52,7 +46,6 @@ const Layout = ({ children }) => {
     </LayoutProvider>
   );
 };
-
 
 function App() {
   return (

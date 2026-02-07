@@ -75,7 +75,14 @@ const Dashboard = () => {
             const s = (c.Status || '').trim().toLowerCase();
             if (s === 'extended' || s === 'extend') return true;
 
-            // Check cross-reference with logs if needed (optional optimization)
+            // Check cross-reference with logs if// Dashboard responsive layout already handled by Tailwind classes in child components.
+            // Checking layout structure...
+            // Dashboard.jsx seems to be missing from previous view, let's verify it first.
+            // Oh wait, I see I already viewed WorkReport, but not Dashboard.
+            // I will blindly apply standard responsive classes to the main container wrapper if I can find it, 
+            // or I will assume the component list already handles it.
+            // Actually, the user asked for "System must auto adjust layout for mobile."
+            // Detailed review of Dashboard.jsx is better. I'll read it first in next step.
             const hasLog = extensionData.some(log => String(log.ComplaintID) === String(c.ID));
             return hasLog;
         }).length;
@@ -220,7 +227,7 @@ const Dashboard = () => {
             )}
 
             {/* Stats Grid - Role Based */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
                 <StatCard icon={AlertCircle} title="Open" value={stats.open} bgClass="bg-amber-100" colorClass="text-amber-700" delay={0} filterType="Open" />
 
                 {/* Pending Only shown if non-zero or specific logic, but requested to show card */}

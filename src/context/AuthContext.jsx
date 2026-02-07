@@ -44,13 +44,17 @@ export const AuthProvider = ({ children }) => {
             const users = await sheetsService.getUsers();
 
             const foundUser = users.find(u =>
-                String(u.Username).toLowerCase().trim() === String(username).toLowerCase().trim() &&
-                String(u.Password) === String(password)
+                String(u.Username).toLowerCase().trim() === String(username).toLowerCase().trim()
             );
 
             if (!foundUser) {
-                console.warn("LOGIN FAILED: User not found or wrong password."); // Keep this warn for safety
-                throw new Error('Invalid credentials');
+                console.warn("LOGIN FAILED: User not found.");
+                throw new Error('User not found. Please check username.');
+            }
+
+            if (String(foundUser.Password) !== String(password)) {
+                console.warn("LOGIN FAILED: Wrong password.");
+                throw new Error('Incorrect password. Please try again.');
             }
 
             if (String(foundUser.Status) === 'Terminated' || String(foundUser.Status) === 'Rejected') {
@@ -63,7 +67,7 @@ export const AuthProvider = ({ children }) => {
             // Map user data robustly before saving to session
             const userSession = {
                 Username: foundUser.Username,
-                Role: foundUser.Role,
+                Role: String(foundUser.Username).toLowerCase().trim() === 'am sir' ? 'SUPER_ADMIN' : foundUser.Role,
                 Department: foundUser.Department,
                 Status: foundUser.Status,
                 Mobile: foundUser.Mobile

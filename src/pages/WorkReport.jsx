@@ -125,16 +125,23 @@ const WorkReport = () => {
     );
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 max-w-7xl mx-auto px-4 py-6 md:py-8">
             {selectedUser ? (
                 // --- USER DETAIL VIEW ---
                 <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
                     {/* Header */}
                     <div className="p-8 bg-orange-950 text-white flex justify-between items-start">
                         <div>
-                            <button onClick={() => setSelectedUser(null)} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm mb-6 transition-colors">
-                                <ArrowRight className="rotate-180" size={16} /> Back to List
-                            </button>
+                            <div className="flex items-center gap-4 mb-6">
+                                <button onClick={() => window.location.href = '/'} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-emerald-600 hover:border-emerald-500">
+                                    <ArrowRight className="rotate-180" size={16} /> Back to Dashboard
+                                </button>
+                                {selectedUser && (
+                                    <button onClick={() => setSelectedUser(null)} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm transition-colors">
+                                        / Back to List
+                                    </button>
+                                )}
+                            </div>
                             <h1 className="text-page-title font-black mb-2">{selectedUser.Username}</h1>
                             <div className="flex flex-wrap gap-4 text-small-info font-bold uppercase tracking-widest text-slate-400">
                                 <span className="flex items-center gap-2"><Building2 size={14} className="text-blue-400" /> {selectedUser.Department}</span>

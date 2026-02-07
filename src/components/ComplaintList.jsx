@@ -56,14 +56,17 @@ const PerformanceWidget = ({ user, userStats }) => {
     );
 };
 
-// --- ENTERPRISE ROW COMPONENT (Desktop) ---
+// --- MEMOIZED ROW COMPONENT ---
 const ComplaintRow = memo(({ complaint, onClick }) => {
     const getStatusStyle = (status) => {
-        switch (status) {
+        const s = String(status || '').trim();
+        switch (s) {
             case 'Open': return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20';
             case 'Solved':
-            case 'Closed': return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20';
+            case 'Closed':
+            case 'Resolved': return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20';
             case 'Transferred': return 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/20';
+            case 'Force Close': return 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20';
             default: return 'bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-500/10';
         }
     };
@@ -71,14 +74,14 @@ const ComplaintRow = memo(({ complaint, onClick }) => {
     return (
         <tr
             onClick={() => onClick(complaint)}
-            className="group border-b border-slate-50 hover:bg-orange-50/10 transition-colors cursor-pointer"
+            className="group border-b border-slate-50 hover:bg-emerald-50/10 transition-colors cursor-pointer"
         >
             <td className="p-4 py-3">
                 <span className="font-mono text-small-info font-bold text-slate-400">#{complaint.ID}</span>
             </td>
             <td className="p-4 py-3">
                 <div className="flex flex-col">
-                    <span className="text-table-data font-bold text-slate-800 line-clamp-1 group-hover:text-orange-700 transition-colors tracking-tight">
+                    <span className="text-table-data font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-700 transition-colors tracking-tight">
                         {complaint.Description}
                     </span>
                     <span className="text-[10px] text-slate-400 md:hidden font-bold">{new Date(complaint.Date).toLocaleDateString()}</span>
@@ -101,7 +104,7 @@ const ComplaintRow = memo(({ complaint, onClick }) => {
                 </span>
             </td>
             <td className="p-4 py-3 text-right w-10">
-                <ChevronRight size={14} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
+                <ChevronRight size={14} className="text-slate-300 group-hover:text-emerald-500 transition-colors" />
             </td>
         </tr>
     );
@@ -109,16 +112,17 @@ const ComplaintRow = memo(({ complaint, onClick }) => {
 
 // --- ENTERPRISE CARD COMPONENT (Mobile) ---
 const ComplaintCard = memo(({ complaint, onClick }) => (
-    <div onClick={() => onClick(complaint)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all mb-3">
-        <div className="flex justify-between items-start mb-2">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${complaint.Status === 'Open' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+    <div onClick={() => onClick(complaint)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all mb-3 relative overflow-hidden group">
+        <div className={`absolute top-0 left-0 w-1 h-full ${complaint.Status === 'Open' ? 'bg-amber-500' : complaint.Status === 'Solved' || complaint.Status === 'Closed' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+        <div className="flex justify-between items-start mb-2 pl-2">
+            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border tracking-widest ${complaint.Status === 'Open' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                 {complaint.Status}
             </span>
-            <span className="text-[10px] font-mono text-slate-400">#{complaint.ID}</span>
+            <span className="text-[10px] font-mono text-slate-400 font-bold">#{complaint.ID}</span>
         </div>
-        <h4 className="font-bold text-slate-800 text-sm mb-2 line-clamp-2">{complaint.Description}</h4>
-        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-            <Building2 size={12} /> {complaint.Department}
+        <h4 className="font-bold text-slate-800 text-sm mb-2 line-clamp-2 pl-2 font-body">{complaint.Description}</h4>
+        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide pl-2">
+            <Building2 size={12} className="text-emerald-500" /> {complaint.Department}
         </div>
     </div>
 ));
@@ -222,8 +226,21 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
         loadComplaints();
     }, []);
 
-    // ... (Detail Modal Helpers - unchanged)
+    // ... (Detail Modal Helpers - revised)
     const openDetailModal = (complaint) => {
+        // PART 8: TRANSFER CASE POPUP ACCESS
+        // "When Admin or Super Admin clicks a transferred case: Open full complaint popup. Show..."
+        // "Normal users must NOT have this access."
+        const role = (user.Role || '').toUpperCase().trim();
+        const isTransferred = (complaint.Status || '').toLowerCase() === 'transferred';
+
+        if (isTransferred) {
+            if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+                // Do nothing for normal users
+                return;
+            }
+        }
+
         setSelectedComplaint(complaint);
         setDetailModalOpen(true);
     };

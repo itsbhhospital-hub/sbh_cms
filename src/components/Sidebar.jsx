@@ -49,15 +49,18 @@ const Sidebar = () => {
                 if (location.pathname !== to) showLoader();
                 setMobileOpen(false);
             }}
-            className={`flex items-center gap-3.5 px-4 py-2.5 mx-2 rounded-xl transition-all duration-150 mb-1 group
+            className={`flex items-center gap-3.5 px-4 py-3 mx-2 rounded-xl transition-all duration-300 mb-1 group relative overflow-hidden
         ${isActive(to)
-                    ? 'bg-[var(--sidebar-active)] bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20'
-                    : 'text-[var(--sidebar-text)] opacity-70 hover:bg-[var(--sidebar-hover)] hover:opacity-100 hover:text-orange-700'
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-900/30'
+                    : 'text-emerald-100/70 hover:bg-emerald-800/40 hover:text-white hover:shadow-inner'
                 }`}
         >
-            <Icon size={18} className={`transition-transform ${isActive(to) ? 'text-white' : 'text-orange-500 group-hover:scale-110'}`} />
+            {isActive(to) && (
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            )}
+            <Icon size={18} className={`transition-transform duration-300 ${isActive(to) ? 'text-white scale-105' : 'text-emerald-400/80 group-hover:scale-110 group-hover:text-emerald-300'}`} />
             {(!collapsed || mobileOpen) && (
-                <span className={`tracking-tight ${isActive(to) ? 'text-menu-active' : 'text-menu font-bold'}`}>
+                <span className={`tracking-wide ${isActive(to) ? 'text-menu-active font-bold' : 'text-menu font-medium'}`}>
                     {label}
                 </span>
             )}
@@ -82,22 +85,22 @@ const Sidebar = () => {
                 ${collapsed ? 'md:w-20' : 'md:w-72'}`}
             >
                 {/* Header */}
-                <div className="p-6 flex items-center justify-between border-b border-slate-200 bg-white min-h-[88px]">
+                <div className="p-6 flex items-center justify-between border-b border-emerald-900/50 bg-[var(--sidebar-bg)] min-h-[88px]">
                     {(!collapsed || mobileOpen) && (
                         <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
-                            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 border border-slate-100 p-1">
-                                <img src={logo} alt="SBH Logo" className="w-full h-full object-contain" />
+                            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 p-1 backdrop-blur-sm">
+                                <img src={logo} alt="SBH Logo" className="w-full h-full object-contain rounded-lg opacity-90" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="font-black text-slate-800 tracking-tighter text-xl leading-none">SBH<span className="text-orange-600">CMS</span></span>
-                                <span className="text-[10px] font-bold text-slate-400 tracking-[0.1em] mt-1">Admin Portal</span>
+                                <span className="font-primary font-black text-white tracking-tighter text-xl leading-none">SBH<span className="text-emerald-400">CMS</span></span>
+                                <span className="text-[10px] font-bold text-emerald-400/60 tracking-[0.1em] mt-1">Admin Portal</span>
                             </div>
                         </div>
                     )}
 
                     <button
                         onClick={() => mobileOpen ? setMobileOpen(false) : setCollapsed(!collapsed)}
-                        className={`p-2 bg-slate-50 hover:bg-orange-50 rounded-xl text-slate-400 hover:text-orange-600 transition-all border border-slate-100 shadow-sm ${collapsed && !mobileOpen ? 'mx-auto' : ''}`}
+                        className={`p-2 bg-white/5 hover:bg-emerald-800 rounded-xl text-emerald-400 hover:text-white transition-all border border-white/5 shadow-sm ${collapsed && !mobileOpen ? 'mx-auto' : ''}`}
                     >
                         {mobileOpen ? <X size={20} /> : (collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />)}
                     </button>
@@ -128,24 +131,24 @@ const Sidebar = () => {
                 </div>
 
                 {/* Footer Area */}
-                <div className="p-4 border-t border-slate-200 bg-white/80">
+                <div className="p-4 border-t border-emerald-900/50 bg-[var(--sidebar-bg)]">
                     {(!collapsed || mobileOpen) ? (
                         <div className="flex flex-col gap-3">
-                            <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded-2xl flex items-center justify-between shadow-sm">
+                            <div className="bg-emerald-900/30 border border-emerald-800/50 p-3 rounded-2xl flex items-center justify-between shadow-sm">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-800/50 flex items-center justify-center text-emerald-400 shadow-sm border border-emerald-700/50">
                                         <Clock className="animate-pulse" size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black text-emerald-600/70 tracking-wide leading-none mb-1">Session Left</p>
-                                        <p className="text-sm font-mono font-black text-slate-700 leading-none">{timeLeft || '--:--'}</p>
+                                        <p className="text-[10px] font-black text-emerald-500/70 tracking-wide leading-none mb-1">Session Left</p>
+                                        <p className="text-sm font-mono font-black text-emerald-100 leading-none">{timeLeft || '--:--'}</p>
                                     </div>
                                 </div>
                             </div>
 
                             <button
                                 onClick={logout}
-                                className="w-full flex items-center justify-center gap-3 p-3.5 bg-white text-slate-600 font-bold rounded-2xl border border-slate-200 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all active:scale-95 shadow-sm group"
+                                className="w-full flex items-center justify-center gap-3 p-3.5 bg-emerald-900/20 text-emerald-400 font-bold rounded-2xl border border-emerald-800/50 hover:bg-rose-900/80 hover:text-rose-200 hover:border-rose-800 transition-all active:scale-95 shadow-sm group"
                             >
                                 <LogOut size={18} className="group-hover:translate-x-1 transition-transform" />
                                 <span>Logout Session</span>
@@ -153,12 +156,12 @@ const Sidebar = () => {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-200 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-900/30 flex items-center justify-center text-emerald-400 border border-emerald-800/50 shadow-sm">
                                 <Clock size={20} />
                             </div>
                             <button
                                 onClick={logout}
-                                className="p-3.5 text-slate-400 hover:text-white transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-rose-600 hover:border-rose-600 active:scale-90"
+                                className="p-3.5 text-emerald-500 hover:text-rose-200 transition-all bg-emerald-900/20 rounded-xl border border-emerald-800/50 shadow-sm hover:bg-rose-900/80 hover:border-rose-800 active:scale-90"
                                 title="Logout"
                             >
                                 <LogOut size={20} strokeWidth={2.5} />
