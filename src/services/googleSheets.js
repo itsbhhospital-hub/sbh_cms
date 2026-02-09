@@ -99,6 +99,9 @@ const normalizeRows = (rows) => {
         normalized.Password = findValue(['Password', 'Pass']);
         normalized.Role = findValue(['Role', 'Access Level']);
         normalized.Mobile = findValue(['Mobile', 'Phone', 'Contact']);
+        normalized.ProfilePhoto = findValue(['ProfilePhoto', 'Photo', 'Avatar', 'Image']);
+        normalized.LastLogin = findValue(['LastLogin', 'Last Login', 'Login Time']);
+        normalized.IPDetails = findValue(['IPDetails', 'IP Address', 'IP']);
 
         // Notification & Log Specifics (NEW)
         normalized.TransferredBy = findValue(['TransferredBy', 'Transferred By', 'Transfer By', 'By']);
@@ -292,5 +295,38 @@ export const sheetsService = {
             TransferredBy: transferredBy
         };
         return sendToSheet('transferComplaint', payload, silent);
+    },
+
+    // --- MASTER PROFILE UPGRADE METHODS ---
+
+    uploadProfileImage: async (file, username) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                try {
+                    const base64Data = reader.result; // Data URL
+                    const response = await sendToSheet('uploadImage', { image: base64Data, username }, false);
+                    resolve(response);
+                } catch (e) {
+                    reject(e);
+                }
+            };
+            reader.onerror = error => reject(error);
+        });
+    },
+
+    logUserVisit: async (username) => {
+        try {
+            // 1. Get Real IP from external service (Plan requirement)
+            const ipRes = await axios.get('https://api.ipify.org?format=json');
+            const ip = ipRes.data.ip;
+
+            // 2. Send to Backend
+            return sendToSheet('updateUserIP', { username, ip }, true); // Silent update
+        } catch (e) {
+            console.warn("IP Tracking failed:", e);
+            // Fallback: Send 'Unknown' or retry logic if needed, but don't block user
+        }
     }
 };

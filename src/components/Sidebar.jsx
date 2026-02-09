@@ -56,10 +56,10 @@ const Sidebar = () => {
             }}
             className={({ isActive }) => `
                 relative flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl transition-all duration-300 group
-                font-body font-bold tracking-wide mb-1 text-sm
+                font-body font-semibold tracking-wide mb-1 text-sm
                 ${isActive
-                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 scale-[1.02]'
-                    : 'text-white hover:bg-white/5 hover:text-white'
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-900/20 scale-[1.02]'
+                    : 'text-white/90 hover:bg-white/10 hover:text-white transition-all'
                 }
             `}
         >
@@ -76,7 +76,7 @@ const Sidebar = () => {
                     )}
 
                     {isActive && (
-                        <div className="absolute right-3 w-2 h-2 rounded-full bg-[#65a30d] shadow-sm" />
+                        <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white shadow-sm shadow-emerald-500/50" />
                     )}
                 </>
             )}
@@ -96,8 +96,8 @@ const Sidebar = () => {
                 onMouseEnter={() => !mobileOpen && setIsHovered(true)}
                 onMouseLeave={() => !mobileOpen && setIsHovered(false)}
                 className={`fixed md:sticky top-0 left-0 z-[150] h-[100dvh] 
-                bg-gradient-to-b from-emerald-950/95 via-emerald-900/95 to-emerald-900/90 
-                backdrop-blur-xl border-r border-white/10 shadow-[4px_0_30px_rgba(0,0,0,0.1)] 
+                bg-gradient-to-b from-[#022c22] via-[#064e3b] to-[#065f46]
+                backdrop-blur-xl border-r border-white/5 shadow-[4px_0_24px_rgba(0,0,0,0.2)] 
                 flex flex-col justify-between transition-all duration-300 ease-in-out
                 ${mobileOpen ? 'translate-x-0 w-[80%] max-w-[300px]' : collapsed && !isHovered ? 'w-[80px] -translate-x-0' : 'translate-x-0 w-[260px]'}
                 ${!mobileOpen && 'hidden md:flex flex-col'}`}
@@ -151,8 +151,8 @@ const Sidebar = () => {
                                         <Clock className="animate-pulse" size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black text-[#1a2e05] tracking-wide leading-none mb-1">Session Left</p>
-                                        <p className="text-sm font-mono font-black text-white leading-none">{timeLeft || '--:--'}</p>
+                                        <p className="text-[10px] font-bold text-emerald-100 tracking-wide leading-none mb-1 opacity-80 uppercase">Session Left</p>
+                                        <p className="text-sm font-mono font-black text-white leading-none tracking-wider">{timeLeft || '--:--'}</p>
                                     </div>
                                 </div>
                             </div>

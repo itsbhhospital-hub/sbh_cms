@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
 import { DEPARTMENTS } from '../constants/appData';
-import { Check, X, Shield, User as UserIcon, Lock, Search, Save, Edit2, Phone, ChevronLeft, ChevronRight, UserPlus, Trash2, Key, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Check, X, Shield, User as UserIcon, Lock, Search, Save, Edit2, Phone, ChevronLeft, ChevronRight, UserPlus, Trash2, Key, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import UserProfilePanel from '../components/UserProfilePanel';
+import SuccessPopup from '../components/SuccessPopup';
 
 const UserManagement = () => {
     const { user } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [editingUser, setEditingUser] = useState(null);
-    const [editForm, setEditForm] = useState({});
+
+    // Panel State
+    const [selectedUser, setSelectedUser] = useState(null);
 
     // Add User State
     const [addingUser, setAddingUser] = useState(false);
@@ -19,7 +22,6 @@ const UserManagement = () => {
 
     // Delete & Reject Confirmation State
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [rejectConfirm, setRejectConfirm] = useState(null);
     const [actionSuccess, setActionSuccess] = useState(null);
 
     // Pagination State
@@ -49,28 +51,24 @@ const UserManagement = () => {
         }
     };
 
+    // Open Side Panel
     const handleEditClick = (u) => {
-        setEditingUser(u.Username);
-        setEditForm({
-            Username: u.Username,
-            Password: u.Password,
-            Department: u.Department,
-            Mobile: u.Mobile,
-            Role: u.Role,
-            Status: u.Status,
-            OldUsername: u.Username
-        });
+        setSelectedUser(u);
     };
 
-    const handleSave = async () => {
+    // Handle Update from Panel
+    const handleUpdateUser = async (updatedData) => {
         try {
-            await sheetsService.updateUser(editForm);
-            setActionSuccess("User updated successfully! 🎉");
-            setEditingUser(null);
+            await sheetsService.updateUser({
+                ...updatedData,
+                OldUsername: selectedUser.Username
+            });
+            setActionSuccess("User details updated successfully! 💾");
+            setSelectedUser(null);
             loadUsers();
         } catch (error) {
-            alert("Failed to update user.");
             console.error(error);
+            throw error; // Propagate to UserProfilePanel
         }
     };
 
@@ -80,7 +78,7 @@ const UserManagement = () => {
         setDeleteConfirm(null);
         try {
             await sheetsService.deleteUser(targetUsername);
-            setActionSuccess("User deleted successfully! 🗑️");
+            setActionSuccess("User access revoked/deleted. 🗑️");
             loadUsers();
         } catch (error) {
             alert("Failed to delete user.");
@@ -97,7 +95,7 @@ const UserManagement = () => {
         const tempUser = { ...newUserForm, Status: 'Active' };
         try {
             await sheetsService.registerUser(tempUser);
-            setActionSuccess("User created successfully! 🚀");
+            setActionSuccess("Member added successfully! 🚀");
             setAddingUser(false);
             setNewUserForm({ Username: '', Password: '', Department: 'General', Mobile: '', Role: 'user' });
             loadUsers();
@@ -115,8 +113,8 @@ const UserManagement = () => {
         if (!confirm(`Approve access for ${u.Username}?`)) return;
         setIsApproving(true);
         try {
-            await sheetsService.updateUser({ Username: u.Username, Status: 'Active' });
-            setActionSuccess("User approved & notified! ✅");
+            await sheetsService.updateUser({ Username: u.Username, Status: 'Active', OldUsername: u.Username });
+            setActionSuccess("User Approved! Account is now active. ✅");
             loadUsers();
         } catch (error) {
             alert("Failed to approve user.");
@@ -126,13 +124,15 @@ const UserManagement = () => {
         }
     };
 
-    // ... (rest of filtering)
-
-    const filteredUsers = users.filter(u =>
-        u.Username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.Department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.Role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => {
+        const term = searchTerm.toLowerCase();
+        return (
+            String(u.Username || '').toLowerCase().includes(term) ||
+            String(u.Department || '').toLowerCase().includes(term) ||
+            String(u.Role || '').toLowerCase().includes(term) ||
+            String(u.Mobile || '').includes(term)
+        );
+    });
 
     const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
     const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -158,7 +158,7 @@ const UserManagement = () => {
                         <Search className="absolute left-3 top-3 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search users..."
+                            placeholder="Search by Name, Dept, Mobile..."
                             className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-forms"
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -170,13 +170,10 @@ const UserManagement = () => {
                 </div>
             </div>
 
-            {actionSuccess && (
-                <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-orange-800 text-white px-6 py-3 rounded-xl shadow-2xl animate-in slide-in-from-top-4">
-                    {actionSuccess}
-                </div>
-            )}
+            <SuccessPopup message={actionSuccess} onClose={() => setActionSuccess(null)} />
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse table-compact min-w-[800px]">
                         <thead>
@@ -193,13 +190,17 @@ const UserManagement = () => {
                                 <tr><td colSpan="5" className="p-20 text-center text-slate-400 animate-pulse">Loading...</td></tr>
                             ) : paginatedUsers.map((u, idx) => (
                                 <tr key={u.Username || idx} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4 cursor-pointer" onClick={() => handleEditClick(u)}>
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white shadow-sm ${u.Role === 'admin' ? 'bg-orange-600' : 'bg-slate-400'}`}>
-                                                {u.Username ? u.Username[0].toUpperCase() : '?'}
+                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-white shadow-sm overflow-hidden ${u.Role === 'admin' ? 'bg-orange-600' : 'bg-slate-400'}`}>
+                                                {u.ProfilePhoto ? (
+                                                    <img src={u.ProfilePhoto} alt="DP" className="w-full h-full object-cover" loading="lazy" />
+                                                ) : (
+                                                    u.Username ? u.Username[0].toUpperCase() : '?'
+                                                )}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-table-data font-bold text-slate-800">{u.Username}</span>
+                                                <span className="text-table-data font-bold text-slate-800 group-hover:text-orange-600 transition-colors">{u.Username}</span>
                                                 <span className="text-[10px] text-slate-400 font-bold">{u.Role}</span>
                                             </div>
                                         </div>
@@ -216,14 +217,13 @@ const UserManagement = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setUsers(users.map(item => item.Username === u.Username ? { ...item, showPass: !item.showPass } : item))}>
+                                        <div className="flex items-center gap-2 group cursor-pointer" onClick={(e) => { e.stopPropagation(); setUsers(users.map(item => item.Username === u.Username ? { ...item, showPass: !item.showPass } : item)) }}>
                                             <span className="text-xs font-mono text-slate-400">{u.showPass ? u.Password : '••••'}</span>
                                             <Key size={12} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end gap-2">
-                                            {/* PROTECTION: Only AM Sir can edit AM Sir */}
+                                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                             {u.Username === 'AM Sir' ? (
                                                 user.Username === 'AM Sir' ? (
                                                     <button onClick={() => handleEditClick(u)} className="p-2 text-slate-400 hover:text-orange-600 transition-colors"><Edit2 size={16} /></button>
@@ -233,18 +233,31 @@ const UserManagement = () => {
                                             ) : (
                                                 <>
                                                     {u.Status !== 'Active' && (
-                                                        <button
-                                                            onClick={() => handleApprove(u)}
-                                                            disabled={isApproving}
-                                                            title="Approve User"
-                                                            className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100 shadow-sm"
-                                                        >
-                                                            <Check size={16} strokeWidth={3} />
-                                                        </button>
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleApprove(u)}
+                                                                disabled={isApproving}
+                                                                title="Approve User"
+                                                                className="px-3 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100 shadow-sm text-xs font-bold flex items-center gap-1"
+                                                            >
+                                                                <Check size={14} /> Approve
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setDeleteConfirm(u)}
+                                                                title="Reject/Delete"
+                                                                className="px-3 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors border border-rose-100 shadow-sm text-xs font-bold flex items-center gap-1"
+                                                            >
+                                                                <X size={14} /> Reject
+                                                            </button>
+                                                        </>
                                                     )}
-                                                    <button onClick={() => handleEditClick(u)} className="p-2 text-slate-400 hover:text-orange-600 transition-colors"><Edit2 size={16} /></button>
+
+                                                    {u.Status === 'Active' && (
+                                                        <button onClick={() => handleEditClick(u)} className="p-2 text-slate-400 hover:text-orange-600 transition-colors" title="Edit Profile"><Edit2 size={16} /></button>
+                                                    )}
+
                                                     {u.Username !== user.Username && (
-                                                        <button onClick={() => setDeleteConfirm(u)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                                                        <button onClick={() => setDeleteConfirm(u)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Delete User"><Trash2 size={16} /></button>
                                                     )}
                                                 </>
                                             )}
@@ -374,28 +387,26 @@ const UserManagement = () => {
                 )
             }
 
-            {/* Edit User Modal */}
-            {
-                editingUser && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            {/* Side Panel Implementation */}
+            <AnimatePresence>
+                {selectedUser && (
+                    <>
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100"
-                        >
-                            <h3 className="text-xl font-black text-slate-900 mb-6">Edit User</h3>
-                            <div className="space-y-4">
-                                <input className="w-full p-3 border rounded-xl" value={editForm.Mobile} onChange={e => setEditForm({ ...editForm, Mobile: e.target.value })} placeholder="Mobile" />
-                                <input className="w-full p-3 border rounded-xl" value={editForm.Department} onChange={e => setEditForm({ ...editForm, Department: e.target.value })} placeholder="Department" />
-                                <div className="flex gap-4">
-                                    <button onClick={() => setEditingUser(null)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
-                                    <button onClick={handleSave} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold">Save Changes</button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )
-            }
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[140]"
+                            onClick={() => setSelectedUser(null)}
+                        />
+                        <UserProfilePanel
+                            user={selectedUser}
+                            onClose={() => setSelectedUser(null)}
+                            onUpdate={handleUpdateUser}
+                            onDelete={() => { setDeleteConfirm(selectedUser); setSelectedUser(null); }}
+                        />
+                    </>
+                )}
+            </AnimatePresence>
 
             {/* Delete Confirmation Modal */}
             {

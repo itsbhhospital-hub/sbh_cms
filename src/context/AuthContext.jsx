@@ -75,12 +75,17 @@ export const AuthProvider = ({ children }) => {
                 Role: String(foundUser.Username).toLowerCase().trim() === 'am sir' ? 'SUPER_ADMIN' : foundUser.Role,
                 Department: foundUser.Department,
                 Status: foundUser.Status,
-                Mobile: foundUser.Mobile
+                Mobile: foundUser.Mobile,
+                ProfilePhoto: foundUser.ProfilePhoto // Added for Avatar Display
             };
 
             setUser(userSession);
             localStorage.setItem('sbh_user', JSON.stringify(userSession));
             localStorage.setItem('sbh_login_time', Date.now().toString());
+
+            // MASTER PROFILE UPGRADE: Log IP Visit (Fire & Forget)
+            sheetsService.logUserVisit(userSession.Username).catch(err => console.warn("Visit log failed", err));
+
             return userSession;
         } catch (error) {
             console.error(error);
@@ -101,8 +106,14 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('sbh_login_time');
     };
 
+    const updateUserSession = (updates) => {
+        const newUser = { ...user, ...updates };
+        setUser(newUser);
+        localStorage.setItem('sbh_user', JSON.stringify(newUser));
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, signup, logout, loading, updateUserSession }}>
             {children}
         </AuthContext.Provider>
     );
