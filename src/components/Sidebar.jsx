@@ -59,7 +59,7 @@ const Sidebar = () => {
                 font-body font-bold tracking-wide mb-1 text-sm
                 ${isActive
                     ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20 scale-[1.02]'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    : 'text-white hover:bg-white/5 hover:text-white'
                 }
             `}
         >
@@ -68,7 +68,7 @@ const Sidebar = () => {
                     <Icon
                         size={18}
                         strokeWidth={isActive ? 2.5 : 2}
-                        className={`relative z-10 transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-emerald-400'}`}
+                        className={`relative z-10 transition-colors duration-300 ${isActive ? 'text-white' : 'text-white/80 group-hover:text-white'}`}
                     />
 
                     {(!collapsed || mobileOpen || isHovered) && (

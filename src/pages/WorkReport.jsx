@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
+import TicketJourneyModal from '../components/TicketJourneyModal'; // New Import
 import {
     BarChart3, Users, Clock, CheckCircle, AlertCircle,
     ArrowRight, Star, SlidersHorizontal, Search, Download,
@@ -11,10 +12,16 @@ const WorkReport = () => {
     const { user } = useAuth();
     const [users, setUsers] = useState([]);
     const [complaints, setComplaints] = useState([]);
-    const [ratings, setRatings] = useState([]); // NEW
+    const [ratings, setRatings] = useState([]);
+    const [transferLogs, setTransferLogs] = useState([]); // NEW
+    const [extensionLogs, setExtensionLogs] = useState([]); // NEW
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Ticket Journey State
+    const [journeyTicket, setJourneyTicket] = useState(null);
+    const [showJourney, setShowJourney] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -22,14 +29,18 @@ const WorkReport = () => {
 
     const loadData = async () => {
         try {
-            const [usersData, complaintsData, ratingsData] = await Promise.all([
+            const [usersData, complaintsData, ratingsData, transferData, extensionData] = await Promise.all([
                 sheetsService.getUsers(),
                 sheetsService.getComplaints(true),
-                sheetsService.getRatings(true) // Fetch comprehensive ratings logs
+                sheetsService.getRatings(true),
+                sheetsService.getTransferLogs(), // Fetch these for journey
+                sheetsService.getExtensionLogs() // Fetch these for journey
             ]);
             setUsers(usersData);
             setComplaints(complaintsData);
             setRatings(ratingsData);
+            setTransferLogs(transferData);
+            setExtensionLogs(extensionData);
         } catch (err) {
             console.error("Failed to load report data", err);
         } finally {
@@ -118,11 +129,7 @@ const WorkReport = () => {
             String(u.Department || '').toLowerCase().includes(search);
     });
 
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="w-10 h-10 border-4 border-slate-100 border-t-orange-600 rounded-full animate-spin"></div>
-        </div>
-    );
+    if (loading) return null; // Spinner removed as requested
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 max-w-7xl mx-auto px-4 py-6 md:py-8">
@@ -204,8 +211,16 @@ const WorkReport = () => {
                                         selectedUser.stats.history.map((c, i) => {
                                             const isResolver = String(c.ResolvedBy || '').toLowerCase() === String(selectedUser.Username || '').toLowerCase();
                                             return (
-                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-4 font-bold text-slate-600">#{c.ID}</td>
+
+                                                <tr
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setJourneyTicket(c);
+                                                        setShowJourney(true);
+                                                    }}
+                                                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                                                >
+                                                    <td className="p-4 font-bold text-slate-600 group-hover:text-orange-600 underline decoration-dotted decoration-slate-300 group-hover:decoration-orange-400">#{c.ID}</td>
                                                     <td className="p-4 text-slate-500 font-medium">
                                                         {new Date(c.Date).toLocaleDateString()}
                                                     </td>
@@ -302,6 +317,15 @@ const WorkReport = () => {
                     </div>
                 </>
             )}
+            {/* TICKET JOURNEY MODAL */}
+            <TicketJourneyModal
+                isOpen={showJourney}
+                onClose={() => setShowJourney(false)}
+                ticket={journeyTicket}
+                transferLogs={transferLogs}
+                extensionLogs={extensionLogs}
+                ratingsLog={ratings}
+            />
         </div>
     );
 };

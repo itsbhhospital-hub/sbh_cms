@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { sheetsService } from '../services/googleSheets';
 import ComplaintList from '../components/ComplaintList';
 import ActiveUsersModal from '../components/ActiveUsersModal';
+import DashboardPopup from '../components/DashboardPopup';
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle, AlertCircle, Clock, Plus, History, Shield, Users, Share2, Timer, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,6 +24,38 @@ const Dashboard = () => {
     const [showActiveStaffModal, setShowActiveStaffModal] = useState(false);
     const [activeFilter, setActiveFilter] = useState('All'); // For click-to-filter
 
+    // Popup State
+    const [popupOpen, setPopupOpen] = useState(false);
+    const [popupCategory, setPopupCategory] = useState('');
+    const [popupItems, setPopupItems] = useState([]);
+    const [trackTicket, setTrackTicket] = useState(null);
+    const [complaintsData, setComplaintsData] = useState([]);
+
+    const getComplaintsByCategory = (category) => {
+        if (!complaintsData) return [];
+        const now = new Date(); now.setHours(0, 0, 0, 0);
+
+        const normalize = (s) => String(s || '').trim().toLowerCase();
+
+        switch (category) {
+            case 'Open': return complaintsData.filter(c => normalize(c.Status) === 'open');
+            case 'Pending': return complaintsData.filter(c => ['pending', 'in-progress'].includes(normalize(c.Status)));
+            case 'Solved': return complaintsData.filter(c => ['solved', 'resolved', 'closed'].includes(normalize(c.Status)));
+            case 'Transferred': return complaintsData.filter(c => normalize(c.Status) === 'transferred');
+            case 'Active Staff': return []; // Handled separately
+            case 'Delayed': return complaintsData.filter(c => {
+                const s = normalize(c.Status);
+                if (['solved', 'resolved', 'closed'].includes(s)) return false;
+                return c.TargetDate && new Date(c.TargetDate) < now;
+            });
+            case 'Extended': return complaintsData.filter(c => {
+                const s = normalize(c.Status);
+                return s === 'extended' || s === 'extend'; // fallback if no logs
+            });
+            default: return [];
+        }
+    };
+
     const isSuperAdmin = user?.Role === 'SUPER_ADMIN';
     const isAdmin = user?.Role?.toLowerCase() === 'admin' || isSuperAdmin;
 
@@ -31,7 +64,7 @@ const Dashboard = () => {
     }, []);
 
     const calculateStats = async () => {
-        const [complaintsData, usersData, extensionData] = await Promise.all([
+        const [rawComplaints, usersData, extensionData] = await Promise.all([
             sheetsService.getComplaints(),
             isAdmin ? sheetsService.getUsers() : Promise.resolve([]),
             sheetsService.getExtensionLogs()
@@ -41,7 +74,7 @@ const Dashboard = () => {
         const userDept = (user.Department || '').toLowerCase().trim();
 
         // 1. Filter Relevant Complaints based on Role
-        const relevant = complaintsData.filter(c => {
+        const relevant = rawComplaints.filter(c => {
             if (isAdmin) return true; // Admin sees all
 
             // User sees own Department OR Reported by them
@@ -49,6 +82,8 @@ const Dashboard = () => {
             const cReportedBy = (c.ReportedBy || '').toLowerCase().trim();
             return cDept === userDept || cReportedBy === username;
         });
+
+        setComplaintsData(relevant); // Fixed: Populating state for popups
 
         // 2. Data Counting Logic
         // Open: Status is explicitly 'Open'
@@ -117,11 +152,14 @@ const Dashboard = () => {
         }
     };
 
-    const handleCardClick = (filterType) => {
-        if (filterType === 'Active Staff' && isAdmin) {
+    const handleCardClick = (type) => {
+        if (type === 'Active Staff') {
             setShowActiveStaffModal(true);
         } else {
-            setActiveFilter(filterType);
+            // Open Popup
+            setPopupCategory(type);
+            setPopupItems(getComplaintsByCategory(type));
+            setPopupOpen(true);
         }
     };
 
@@ -159,6 +197,17 @@ const Dashboard = () => {
             <ActiveUsersModal
                 isOpen={showActiveStaffModal}
                 onClose={() => setShowActiveStaffModal(false)}
+            />
+
+            <DashboardPopup
+                isOpen={popupOpen}
+                onClose={() => setPopupOpen(false)}
+                title={popupCategory}
+                complaints={popupItems}
+                onTrack={(ticket) => {
+                    setPopupOpen(false); // Close list popup
+                    setTrackTicket(ticket); // Trigger main list to open details
+                }}
             />
 
             {/* Re-open Alert Warning */}
@@ -256,7 +305,8 @@ const Dashboard = () => {
 
             {/* List Container */}
             <div className="mt-4 md:mt-8">
-                <ComplaintList initialFilter={activeFilter} />
+                {/* We pass trackTicket to ComplaintList. ComplaintList will need to watch this prop and open modal if changed */}
+                <ComplaintList initialFilter={activeFilter} autoOpenTicket={trackTicket} onAutoOpenComplete={() => setTrackTicket(null)} />
             </div>
         </div>
     );

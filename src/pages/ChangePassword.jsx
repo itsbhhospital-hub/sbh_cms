@@ -33,7 +33,16 @@ const ChangePassword = () => {
                 logout();
             }, 3000);
         } catch (err) {
-            setError(err.message || 'Failed to update password. Please check your current password.');
+            let msg = err.message;
+            // Map backend error to professional UI message
+            if (msg.includes('Wrong Password') || msg.includes('Incorrect')) {
+                msg = "The current password you entered is incorrect.";
+            } else if (msg.includes('User not found')) {
+                msg = "Account validation failed. Please contact IT.";
+            } else {
+                msg = "Update failed. Please check your connection and try again.";
+            }
+            setError(msg);
         } finally {
             setIsLoading(false);
         }

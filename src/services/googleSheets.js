@@ -207,7 +207,7 @@ const sendToSheet = async (action, payload, silent = false) => {
         return result;
     } catch (error) {
         console.error("API Write Error:", error);
-        alert(`API Connection Failed: ${error.message}. Please check your connection.`);
+        // Alert removed to allow UI to handle specific errors (like Wrong Password)
         throw error;
     } finally {
         if (!silent) window.dispatchEvent(new Event('sbh-loading-end'));

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
-import { Clock, CheckCircle, AlertTriangle, Search, Calendar, Hash, X, Building2, User, ArrowRight, RefreshCw, Star, BarChart3, TrendingUp, ChevronRight, Plus, Share2, History as HistoryIcon, Shield } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, Search, Calendar, Hash, X, Building2, User, ArrowRight, RefreshCw, Star, BarChart3, TrendingUp, ChevronRight, Plus, Share2, History as HistoryIcon, Shield, ShieldCheck } from 'lucide-react';
 import { useClickOutside } from '../hooks/useClickOutside';
 import TransferModal from './TransferModal';
 import ExtendModal from './ExtendModal';
@@ -127,7 +127,7 @@ const ComplaintCard = memo(({ complaint, onClick }) => (
     </div>
 ));
 
-const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initialFilter = 'All' }) => {
+const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initialFilter = 'All', autoOpenTicket = null, onAutoOpenComplete = () => { } }) => {
     const { user } = useAuth();
     const [complaints, setComplaints] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -177,6 +177,15 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
     useEffect(() => {
         if (initialFilter) setFilter(initialFilter);
     }, [initialFilter]);
+
+    // Handle "Track" from Dashboard Popup
+    useEffect(() => {
+        if (autoOpenTicket) {
+            setSelectedComplaint(autoOpenTicket);
+            setDetailModalOpen(true);
+            onAutoOpenComplete();
+        }
+    }, [autoOpenTicket]);
 
     // ... (Modal & Actions State - unchanged)
     const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -597,62 +606,73 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                 </h4>
                                 <div className="space-y-0 pl-4 border-l-2 border-slate-100 ml-2 relative">
                                     {(() => {
-                                        // 1. Complaint Creation
+                                        // 1. Complaint Registered
                                         const events = [{
                                             type: 'created',
                                             date: new Date(selectedComplaint.Date),
-                                            title: 'Ticket Created',
+                                            title: 'Complaint Registered',
                                             subtitle: `Reported by ${selectedComplaint.ReportedBy}`,
                                             icon: <Plus size={10} />,
                                             color: 'green'
                                         }];
 
-                                        // 2. Transfers
+                                        // 2. Assigned (Implied if Department exists)
+                                        if (selectedComplaint.Department) {
+                                            events.push({
+                                                type: 'assigned',
+                                                date: new Date(selectedComplaint.Date), // Assuming assigned at creation for now or same day
+                                                title: 'Assigned',
+                                                subtitle: `To ${selectedComplaint.Department} Dept`,
+                                                icon: <ShieldCheck size={10} />,
+                                                color: 'blue'
+                                            });
+                                        }
+
+                                        // 3. Transfers
                                         const transfers = transferLogs.filter(t => String(t.ComplaintID) === String(selectedComplaint.ID));
                                         transfers.forEach(t => {
                                             events.push({
                                                 type: 'transfer',
-                                                date: new Date(t.TransferDate || t.Date), // Fallback
-                                                title: 'Department Transfer',
-                                                subtitle: `From ${t.FromDept} to ${t.ToDept} by ${t.TransferredBy}`,
+                                                date: new Date(t.TransferDate || t.Date),
+                                                title: 'Department Transferred',
+                                                subtitle: `From ${t.FromDept} to ${t.ToDept}`,
                                                 icon: <Share2 size={10} />,
                                                 color: 'sky'
                                             });
                                         });
 
-                                        // 3. Extensions
+                                        // 4. Extensions
                                         const extensions = extensionLogs.filter(e => String(e.ComplaintID) === String(selectedComplaint.ID));
                                         extensions.forEach(e => {
                                             events.push({
                                                 type: 'extension',
                                                 date: new Date(e.ExtensionDate || e.Date),
                                                 title: 'Deadline Extended',
-                                                subtitle: `New Target: ${e.NewTargetDate} (Reason: ${e.Reason})`,
+                                                subtitle: `Target: ${e.NewTargetDate} (Reason: ${e.Reason})`,
                                                 icon: <Clock size={10} />,
                                                 color: 'amber'
                                             });
                                         });
 
-                                        // 4. Resolution
+                                        // 5. Resolution
                                         if (selectedComplaint.ResolvedDate) {
                                             events.push({
                                                 type: 'resolved',
                                                 date: new Date(selectedComplaint.ResolvedDate),
-                                                title: 'Ticket Resolved',
-                                                subtitle: `Resolved by ${selectedComplaint.ResolvedBy}`,
+                                                title: 'Complaint Solved',
+                                                subtitle: `Solved by ${selectedComplaint.ResolvedBy}`,
                                                 icon: <CheckCircle size={10} />,
                                                 color: 'orange'
                                             });
                                         }
 
-                                        // 5. Ratings
+                                        // 6. Ratings
                                         const rating = ratingsLog.find(r => String(r.ID) === String(selectedComplaint.ID));
                                         if (rating) {
                                             const reporterName = (rating.Reporter && rating.Reporter !== 'undefined' && rating.Reporter.trim() !== '')
                                                 ? rating.Reporter
-                                                : (selectedComplaint.ReportedBy || 'Complaint Reporter');
+                                                : (selectedComplaint.ReportedBy || 'Reporter');
 
-                                            // Ensure star icon is visible and formatting is professional
                                             events.push({
                                                 type: 'rated',
                                                 date: new Date(rating.Date),
@@ -660,8 +680,8 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                                 subtitle: (
                                                     <span className="flex items-center gap-1.5 mt-0.5">
                                                         <Star size={12} className="text-amber-400 fill-amber-400 shrink-0" />
-                                                        <strong className="text-slate-700">{rating.Rating} Star Rating</strong>
-                                                        <span className="text-slate-500 font-normal">submitted by {reporterName}</span>
+                                                        <strong className="text-slate-700">{rating.Rating} Star</strong>
+                                                        <span className="text-slate-500 font-normal">by {reporterName}</span>
                                                     </span>
                                                 ),
                                                 icon: <Star size={10} />,
@@ -673,30 +693,33 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                         events.sort((a, b) => a.date - b.date);
 
                                         return events.map((ev, i) => (
-                                            <div key={i} className="relative pl-8 py-2 group">
+                                            <div key={i} className="relative pl-8 py-3 group">
                                                 {/* Timeline Node */}
-                                                <div className={`absolute -left-[21px] top-3 w-4 h-4 rounded-full bg-white border-2 z-10 flex items-center justify-center transition-all group-hover:scale-125
+                                                <div className={`absolute -left-[21px] top-4 w-4 h-4 rounded-full bg-white border-2 z-10 flex items-center justify-center transition-all group-hover:scale-125
                                                     ${ev.color === 'green' ? 'border-emerald-500 text-emerald-500 shadow-emerald-100' :
-                                                        ev.color === 'sky' ? 'border-sky-500 text-sky-500 shadow-sky-100' :
-                                                            ev.color === 'amber' ? 'border-amber-500 text-amber-500 shadow-amber-100' :
-                                                                ev.color === 'orange' ? 'border-orange-500 text-orange-500 shadow-orange-100' :
-                                                                    ev.color === 'purple' ? 'border-purple-500 text-purple-500 shadow-purple-100' : 'border-slate-300'}`}>
+                                                        ev.color === 'blue' ? 'border-blue-500 text-blue-500 shadow-blue-100' :
+                                                            ev.color === 'sky' ? 'border-sky-500 text-sky-500 shadow-sky-100' :
+                                                                ev.color === 'amber' ? 'border-amber-500 text-amber-500 shadow-amber-100' :
+                                                                    ev.color === 'orange' ? 'border-orange-500 text-orange-500 shadow-orange-100' :
+                                                                        ev.color === 'purple' ? 'border-purple-500 text-purple-500 shadow-purple-100' : 'border-slate-300'}`}>
                                                     {ev.icon}
                                                 </div>
 
                                                 {/* Card */}
-                                                <div className={`p-3 rounded-xl border transition-all hover:shadow-sm ${ev.color === 'green' ? 'bg-emerald-50/50 border-emerald-100' :
-                                                    ev.color === 'sky' ? 'bg-sky-50/50 border-sky-100' :
-                                                        ev.color === 'amber' ? 'bg-amber-50/50 border-amber-100' :
-                                                            ev.color === 'orange' ? 'bg-orange-50/50 border-orange-100' :
-                                                                ev.color === 'purple' ? 'bg-purple-50/50 border-purple-100' : 'bg-slate-50 border-slate-100'}`}>
+                                                <div className={`p-3 rounded-xl border transition-all hover:shadow-md ${ev.color === 'green' ? 'bg-emerald-50/50 border-emerald-100' :
+                                                    ev.color === 'blue' ? 'bg-blue-50/50 border-blue-100' :
+                                                        ev.color === 'sky' ? 'bg-sky-50/50 border-sky-100' :
+                                                            ev.color === 'amber' ? 'bg-amber-50/50 border-amber-100' :
+                                                                ev.color === 'orange' ? 'bg-orange-50/50 border-orange-100' :
+                                                                    ev.color === 'purple' ? 'bg-purple-50/50 border-purple-100' : 'bg-slate-50 border-slate-100'}`}>
                                                     <div className="flex justify-between items-start">
                                                         <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">{ev.title}</h5>
-                                                        <span className="text-[10px] font-bold text-slate-400 bg-white/50 px-1.5 py-0.5 rounded border border-slate-100">
-                                                            {ev.date.toLocaleString()}
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-white/50 px-1.5 py-0.5 rounded border border-slate-100 whitespace-nowrap ml-2">
+                                                            {ev.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs font-medium text-slate-600 mt-1">{ev.subtitle}</p>
+                                                    <div className="text-xs font-medium text-slate-600 mt-1">{ev.subtitle}</div>
+                                                    <div className="text-[10px] text-slate-400 mt-1">{ev.date.toLocaleDateString()}</div>
                                                 </div>
                                             </div>
                                         ));
