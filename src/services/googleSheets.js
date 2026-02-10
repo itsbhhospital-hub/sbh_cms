@@ -15,7 +15,7 @@ const MOCK_USERS = [
 
 // --- LOCAL STORAGE CACHE HELPERS ---
 const CACHE_PREFIX = 'sbh_cache_';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 Minutes (Increased for better performance)
+const CACHE_DURATION = 10 * 1000; // 10 Seconds (Optimized for Live Feel)
 
 const getCachedData = (key) => {
     try {
@@ -58,6 +58,26 @@ const invalidateCache = (key) => {
 // --- API HELPERS ---
 
 // --- DATA NORMALIZATION HELPER ---
+
+export const getGoogleDriveDirectLink = (url) => {
+    if (!url) return '';
+    try {
+        // Handle "uc?export=view&id=" format
+        if (url.includes('drive.google.com') && url.includes('id=')) {
+            const match = url.match(/id=([^&]+)/);
+            if (match && match[1]) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+        }
+        // Handle "/file/d/" format
+        if (url.includes('/file/d/')) {
+            const match = url.match(/\/file\/d\/([^/]+)/);
+            if (match && match[1]) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+        }
+        return url;
+    } catch (e) {
+        return url;
+    }
+};
+
 const normalizeRows = (rows) => {
     if (!Array.isArray(rows) || rows.length === 0) return [];
 
@@ -77,6 +97,7 @@ const normalizeRows = (rows) => {
         // Standard Schema Mapping
         normalized.ID = findValue(['ID', 'Ticket ID', 'TID', 'ComplaintID']);
         normalized.Date = findValue(['Date', 'Timestamp', 'Created Date']);
+        normalized.Time = findValue(['Time', 'Registered Time', 'Created Time']);
         normalized.Department = findValue(['Department', 'Dept']);
         normalized.Description = findValue(['Description', 'Desc', 'Complaint']);
         normalized.Status = findValue(['Status']);
@@ -99,17 +120,20 @@ const normalizeRows = (rows) => {
         normalized.Password = findValue(['Password', 'Pass']);
         normalized.Role = findValue(['Role', 'Access Level']);
         normalized.Mobile = findValue(['Mobile', 'Phone', 'Contact']);
-        normalized.ProfilePhoto = findValue(['ProfilePhoto', 'Photo', 'Avatar', 'Image']);
+        normalized.ProfilePhoto = getGoogleDriveDirectLink(findValue(['ProfilePhoto', 'Photo', 'Avatar', 'Image']));
         normalized.LastLogin = findValue(['LastLogin', 'Last Login', 'Login Time']);
         normalized.IPDetails = findValue(['IPDetails', 'IP Address', 'IP']);
 
         // Notification & Log Specifics (NEW)
-        normalized.TransferredBy = findValue(['TransferredBy', 'Transferred By', 'Transfer By', 'By']);
-        normalized.NewDepartment = findValue(['NewDepartment', 'New Department', 'To Dept']);
-        normalized.NewAssignee = findValue(['NewAssignee', 'New Assignee', 'To User']);
-        normalized.Reason = findValue(['Reason', 'Transfer Reason', 'Extension Reason']);
-        normalized.ExtendedBy = findValue(['ExtendedBy', 'Extended By']);
-        normalized.TargetDate = findValue(['TargetDate', 'Target Date', 'New Date']);
+        // Notification & Log Specifics (NEW)
+        normalized.TransferredBy = findValue(['TransferredBy', 'Transferred By', 'Transfer By', 'By', 'transferred_by']);
+        normalized.NewDepartment = findValue(['NewDepartment', 'New Department', 'To Dept', 'to_department']);
+        normalized.FromDepartment = findValue(['FromDepartment', 'From Department', 'From Dept', 'from_department']);
+        normalized.ComplaintID = findValue(['ComplaintID', 'TicketID', 'complaint_id', 'ID']);
+        normalized.TransferDate = findValue(['TransferDate', 'Transfer Time', 'transfer_time']);
+        normalized.Reason = findValue(['Reason', 'Transfer Reason', 'Extension Reason', 'reason']);
+        normalized.ExtendedBy = findValue(['ExtendedBy', 'Extended By', 'extended_by']);
+        normalized.TargetDate = findValue(['TargetDate', 'Target Date', 'New Date', 'new_target_date']);
 
         // Default fallbacks for crucial fields if missing
         if (!normalized.ID && normalized.Username) normalized.ID = normalized.Username; // Treat Username as ID for users
@@ -306,7 +330,7 @@ export const sheetsService = {
             reader.onload = async () => {
                 try {
                     const base64Data = reader.result; // Data URL
-                    const response = await sendToSheet('uploadImage', { image: base64Data, username }, false);
+                    const response = await sendToSheet('uploadImage', { image: base64Data, username }, true);
                     resolve(response);
                 } catch (e) {
                     reject(e);

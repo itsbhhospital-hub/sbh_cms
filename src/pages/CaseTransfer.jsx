@@ -3,7 +3,7 @@ import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { History, Search, ArrowRight, User, Building2, Calendar, Clock, RefreshCw } from 'lucide-react';
-import { formatIST } from '../utils/dateUtils';
+import { formatIST, formatDateIST, formatTimeIST } from '../utils/dateUtils';
 
 const CaseTransfer = () => {
     const { user } = useAuth();
@@ -37,7 +37,7 @@ const CaseTransfer = () => {
                 );
             }
 
-            setLogs(filtered.sort((a, b) => new Date(b.TransferTime) - new Date(a.TransferTime)));
+            setLogs(filtered.sort((a, b) => new Date(String(b.TransferDate).replace(/'/g, '')) - new Date(String(a.TransferDate).replace(/'/g, ''))));
         } catch (error) {
             console.error(error);
         } finally {
@@ -112,7 +112,7 @@ const CaseTransfer = () => {
                                 <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
-                                            <span className="text-table-data font-black text-slate-800">#{log.ComplaintID}</span>
+                                            <span className="text-table-data font-black text-slate-800">#{String(log.ComplaintID || log.ID || 'N/A').replace(/'/g, '')}</span>
                                             <span className="text-[10px] text-orange-600 font-bold">Transfer Entry</span>
                                         </div>
                                     </td>
@@ -150,11 +150,11 @@ const CaseTransfer = () => {
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2 text-table-data font-bold text-slate-700">
                                                 <Calendar size={14} className="text-slate-400" />
-                                                {formatIST(log.TransferTime).split(',')[0]}
+                                                {formatDateIST(log.TransferDate)}
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold">
                                                 <Clock size={12} />
-                                                {formatIST(log.TransferTime).split(',')[1]}
+                                                {formatTimeIST(log.TransferDate)}
                                             </div>
                                         </div>
                                     </td>

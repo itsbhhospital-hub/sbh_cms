@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { sheetsService } from '../services/googleSheets';
+import { sheetsService, getGoogleDriveDirectLink } from '../services/googleSheets';
 
 const AuthContext = createContext(null);
 
@@ -22,7 +22,12 @@ export const AuthProvider = ({ children }) => {
                 setUser(null);
             } else {
                 try {
-                    setUser(JSON.parse(storedUser));
+                    const parsed = JSON.parse(storedUser);
+                    // HOTFIX: Ensure Profile Photo URL is normalized even for cached sessions
+                    if (parsed.ProfilePhoto) {
+                        parsed.ProfilePhoto = getGoogleDriveDirectLink(parsed.ProfilePhoto);
+                    }
+                    setUser(parsed);
                 } catch (e) {
                     console.error("Failed to parse stored user", e);
                     setUser(null);

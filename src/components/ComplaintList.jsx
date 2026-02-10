@@ -77,26 +77,67 @@ const ComplaintRow = memo(({ complaint, onClick }) => {
             className="group border-b border-slate-50 hover:bg-emerald-50/10 transition-colors cursor-pointer"
         >
             <td className="p-4 py-3">
-                <span className="font-mono text-small-info font-bold text-slate-400">#{complaint.ID}</span>
+                <span className="font-mono text-small-info font-bold text-slate-400" translate="no">#{complaint.ID}</span>
             </td>
             <td className="p-4 py-3">
                 <div className="flex flex-col">
                     <span className="text-table-data font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-700 transition-colors tracking-tight">
                         {complaint.Description}
                     </span>
-                    <span className="text-[10px] text-slate-400 md:hidden font-bold">{new Date(complaint.Date).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-slate-400 md:hidden font-bold">
+                        {/* Mobile: Date + Time (Deduped) */}
+                        {(() => {
+                            const d = (complaint.Date || '').replace(/'/g, '').split(' ')[0];
+                            const t = (complaint.Time || '').replace(/'/g, '');
+                            return `${d} ${t}`;
+                        })()}
+                    </span>
                 </div>
             </td>
             <td className="p-4 py-3 hidden md:table-cell">
-                <span className="text-small-info font-bold text-slate-500 bg-slate-100/50 px-2 py-0.5 rounded border border-slate-100/50 tracking-tight">
-                    {complaint.Department}
-                </span>
+                {complaint.LatestTransfer ? (
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">To</span>
+                        <span className="text-small-info font-bold text-slate-600 bg-slate-100/50 px-2 py-0.5 rounded border border-slate-100/50 tracking-tight">
+                            {complaint.LatestTransfer.NewDepartment || complaint.Department}
+                        </span>
+                    </div>
+                ) : (
+                    <span className="text-small-info font-bold text-slate-500 bg-slate-100/50 px-2 py-0.5 rounded border border-slate-100/50 tracking-tight">
+                        {complaint.Department}
+                    </span>
+                )}
             </td>
             <td className="p-4 py-3 hidden md:table-cell">
-                <span className="text-table-data font-bold text-slate-700">{complaint.Unit}</span>
+                {complaint.LatestTransfer ? (
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">By</span>
+                        <span className="text-table-data font-bold text-slate-700">{complaint.LatestTransfer.TransferredBy || 'Unknown'}</span>
+                    </div>
+                ) : (
+                    <span className="text-table-data font-bold text-slate-700">{complaint.Unit}</span>
+                )}
             </td>
             <td className="p-4 py-3 hidden md:table-cell">
-                <span className="text-small-info font-bold text-slate-400 tracking-tight">{new Date(complaint.Date).toLocaleDateString()}</span>
+                {complaint.LatestTransfer ? (
+                    <>
+                        <span className="text-small-info font-bold text-slate-400 tracking-tight block">
+                            {(complaint.LatestTransfer.TransferDate || '').replace(/'/g, '').split(' ')[0]}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-300 tracking-tight">
+                            {(complaint.LatestTransfer.TransferDate || '').includes(' ') ? (complaint.LatestTransfer.TransferDate || '').split(' ').slice(1).join(' ').replace(/'/g, '') : ''}
+                        </span>
+                    </>
+                ) : (
+                    <>
+                        <span className="text-small-info font-bold text-slate-400 tracking-tight block">
+                            {(complaint.Date || '').replace(/'/g, '').split(' ')[0]}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-300 tracking-tight">
+                            {(complaint.Time || '').replace(/'/g, '')}
+                        </span>
+                    </>
+                )}
             </td>
             <td className="p-4 py-3 text-right">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-table-header font-black tracking-widest ${getStatusStyle(complaint.Status)}`}>
@@ -115,10 +156,10 @@ const ComplaintCard = memo(({ complaint, onClick }) => (
     <div onClick={() => onClick(complaint)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all mb-3 relative overflow-hidden group">
         <div className={`absolute top-0 left-0 w-1 h-full ${complaint.Status === 'Open' ? 'bg-amber-500' : complaint.Status === 'Solved' || complaint.Status === 'Closed' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
         <div className="flex justify-between items-start mb-2 pl-2">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border tracking-widest ${complaint.Status === 'Open' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+            <span translate="no" className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border tracking-widest ${complaint.Status === 'Open' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                 {complaint.Status}
             </span>
-            <span className="text-[10px] font-mono text-slate-400 font-bold">#{complaint.ID}</span>
+            <span translate="no" className="text-[10px] font-mono text-slate-400 font-bold">#{complaint.ID}</span>
         </div>
         <h4 className="font-bold text-slate-800 text-sm mb-2 line-clamp-2 pl-2 font-body">{complaint.Description}</h4>
         <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide pl-2">
@@ -357,10 +398,27 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
             } else {
                 const myDept = String(user.Department || '').toLowerCase();
                 const myUsername = String(user.Username || '').toLowerCase();
-                result = result.filter(c =>
-                    String(c.Department || '').toLowerCase() === myDept ||
-                    String(c.ReportedBy || '').toLowerCase() === myUsername
-                );
+
+                result = result.map(c => {
+                    const transferRecord = transferLogs
+                        .filter(l => String(l.ComplaintID || l.complaint_id || l.ID || '').trim() === String(c.ID).trim())
+                        .sort((a, b) => new Date(String(b.TransferDate || b.transfer_time).replace(/'/g, '')) - new Date(String(a.TransferDate || a.transfer_time).replace(/'/g, '')))[0];
+
+                    const isTransferredByMe = transferRecord && (
+                        String(transferRecord.TransferredBy || transferRecord.transferred_by || '').toLowerCase() === myUsername ||
+                        String(transferRecord.FromDepartment || transferRecord.from_department || '').toLowerCase() === myDept
+                    );
+
+                    // Return new object with transfer info if relevant, keeping original immutable
+                    if (isTransferredByMe) {
+                        return { ...c, LatestTransfer: transferRecord, _isTransferView: true };
+                    }
+                    return c;
+                }).filter(c => {
+                    const isMyDept = String(c.Department || '').toLowerCase() === myDept;
+                    const isMyReport = String(c.ReportedBy || '').toLowerCase() === myUsername;
+                    return isMyDept || isMyReport || c._isTransferView;
+                });
             }
         }
 
@@ -390,13 +448,21 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                     });
                     break;
                 case 'Transferred':
-                    result = result.filter(c => (c.Status || '').trim().toLowerCase() === 'transferred');
+                    result = result.filter(c => {
+                        const s = (c.Status || '').trim().toLowerCase();
+                        // Part 8 Fix: Must appear in Open, Transfer, Delayed until closed.
+                        // Check if status is Transferred OR if it exists in transfer logs (history of transfer)
+                        const isTransferredStatus = s === 'transferred';
+                        const hasTransferHistory = transferLogs.some(t => String(t.ID || t.complaint_id) === String(c.ID));
+                        const isClosed = s === 'closed' || s === 'solved' || s === 'force close';
+
+                        return !isClosed && (isTransferredStatus || hasTransferHistory);
+                    });
                     break;
                 case 'Extended':
                     result = result.filter(c => (c.Status || '').trim().toLowerCase() === 'extended' || (c.Status || '').trim().toLowerCase() === 'extend');
                     // Note: If 'extended_flag' exists we could use that, but relying on status for now as primary or we'd need to fetch extension log map here.
                     break;
-                case 'Delayed':
                 case 'Delayed':
                     result = result.filter(c => {
                         const s = (c.Status || '').trim().toLowerCase();
@@ -592,7 +658,12 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                         <Calendar size={14} />
                                         <span className="text-label font-bold uppercase tracking-widest text-[#64748b]">Date Reported</span>
                                     </div>
-                                    <p className="font-bold text-slate-700 text-forms">{new Date(selectedComplaint.Date).toLocaleDateString()}</p>
+                                    <p className="font-bold text-slate-700 text-forms">
+                                        {(selectedComplaint.Date || '').replace(/'/g, '').split(' ')[0]}
+                                        <span className="text-slate-400 text-xs ml-2">
+                                            {(selectedComplaint.Time || '').replace(/'/g, '')}
+                                        </span>
+                                    </p>
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                     <div className="flex items-center gap-2 text-slate-400 mb-1">
@@ -639,7 +710,7 @@ const ComplaintList = ({ onlyMyComplaints = false, onlySolvedByMe = false, initi
                                                 type: 'transfer',
                                                 date: new Date(t.TransferDate || t.Date),
                                                 title: 'Department Transferred',
-                                                subtitle: `From ${t.FromDept} to ${t.ToDept}`,
+                                                subtitle: `From ${t.FromDepartment || t.from_department} to ${t.NewDepartment || t.to_department}`,
                                                 icon: <Share2 size={10} />,
                                                 color: 'sky'
                                             });

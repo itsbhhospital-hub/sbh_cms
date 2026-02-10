@@ -12,18 +12,24 @@ export const formatIST = (dateInput) => {
     if (!dateInput) return 'N/A';
 
     try {
-        const date = new Date(dateInput);
+        const cleanDate = typeof dateInput === 'string' ? dateInput.replace(/'/g, '') : dateInput;
+        const date = new Date(cleanDate);
         if (isNaN(date.getTime())) return 'Invalid Date';
 
-        // Intl.DateTimeFormat is the most robust way to force a timezone
-        return new Intl.DateTimeFormat('en-IN', {
+        // Strict Format: "10 Feb 2026, 04:15 PM"
+        const d = new Intl.DateTimeFormat('en-IN', {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
             month: 'short',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
-        }).format(date);
+        });
+
+        // Formatter usually returns "DD MMM YYYY, hh:mm am"
+        // We replace the comma with the requested bullet " • "
+        return d.format(date).replace(',', ' •');
     } catch (e) {
         console.error("Date formatting error:", e);
         return 'Error';
@@ -36,13 +42,34 @@ export const formatIST = (dateInput) => {
 export const formatDateIST = (dateInput) => {
     if (!dateInput) return '-';
     try {
-        const date = new Date(dateInput);
+        const cleanDate = typeof dateInput === 'string' ? dateInput.replace(/'/g, '') : dateInput;
+        const date = new Date(cleanDate);
         if (isNaN(date.getTime())) return '-';
         return new Intl.DateTimeFormat('en-IN', {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
             month: 'short',
             year: 'numeric'
+        }).format(date);
+    } catch (e) {
+        return '-';
+    }
+};
+
+/**
+ * Formats to just Time "hh:mm A" in IST
+ */
+export const formatTimeIST = (dateInput) => {
+    if (!dateInput) return '-';
+    try {
+        const cleanDate = typeof dateInput === 'string' ? dateInput.replace(/'/g, '') : dateInput;
+        const date = new Date(cleanDate);
+        if (isNaN(date.getTime())) return '-';
+        return new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
         }).format(date);
     } catch (e) {
         return '-';

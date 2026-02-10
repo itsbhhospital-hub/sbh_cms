@@ -9,6 +9,26 @@ import { sheetsService } from '../services/googleSheets';
 import { formatIST } from '../utils/dateUtils';
 import UserProfilePanel from '../components/UserProfilePanel';
 
+const parseBackendDate = (str) => {
+    // Expected: "10-02-2026 11:54:11 AM"
+    if (!str) return new Date();
+    const clean = String(str).replace(/'/g, '').replace('at', '').trim(); // Remove ' and 'at' just in case
+    const parts = clean.split(' ');
+
+    // If standard ISO or just Date
+    if (parts.length < 2 && clean.includes('-')) {
+        const [d, m, y] = clean.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+
+    if (parts.length >= 2) {
+        const [d, m, y] = parts[0].split('-').map(Number);
+        const timePart = parts.slice(1).join(' ');
+        return new Date(`${m}/${d}/${y} ${timePart}`); // JS prefers MM/DD/YYYY for parsing
+    }
+    return new Date(clean);
+};
+
 const Navbar = () => {
     const { user, logout, updateUserSession } = useAuth();
     const { setMobileOpen } = useLayout();
@@ -35,11 +55,11 @@ const Navbar = () => {
         if (!user) return;
         const fetchNotifs = async () => {
             try {
-                // Fetch all data sources
+                // Fetch all data sources (Respect Cache)
                 const [complaintsData, transferData, extendData] = await Promise.all([
-                    sheetsService.getComplaints(true, true), // Force refresh, silent
-                    sheetsService.getTransferLogs(true, true),
-                    sheetsService.getExtensionLogs(true, true)
+                    sheetsService.getComplaints(false, true), // Use Cache, Silent
+                    sheetsService.getTransferLogs(false, true),
+                    sheetsService.getExtensionLogs(false, true)
                 ]);
 
                 const role = String(user.Role || '').toUpperCase().trim();
@@ -140,7 +160,8 @@ const Navbar = () => {
                 }
 
                 // Sort by Time Descending (Latest First)
-                filteredEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+                // Sort by Time Descending (Latest First)
+                filteredEvents.sort((a, b) => parseBackendDate(b.time) - parseBackendDate(a.time));
 
                 setNotifications(filteredEvents);
 
@@ -152,12 +173,13 @@ const Navbar = () => {
         };
 
         fetchNotifs();
+        fetchNotifs();
         const interval = setInterval(() => {
             if (!document.hidden) {
                 setIsPolling(true);
                 fetchNotifs().catch(err => console.warn("Polling skipped:", err.message));
             }
-        }, 60000);
+        }, 10000); // Updated to 10s for "Live" feel without hitting quotas
 
         return () => clearInterval(interval);
     }, [user]);
@@ -196,12 +218,12 @@ const Navbar = () => {
     };
 
     const renderNotificationItem = (n, i, full = false) => {
-        const notifDate = new Date(n.time);
+        const notifDate = parseBackendDate(n.time);
         const today = new Date();
         const isToday = notifDate.toDateString() === today.toDateString();
         const displayTime = isToday
-            ? new Date(n.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) // Time only
-            : formatIST(n.time); // Date + Time
+            ? notifDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+            : n.time.replace(/'/g, ''); // Use raw string if not today (already formatted)
 
         // "Ticket SBH0004 transferred by Naman Mishra at 04:12 PM"
         // Title is already "Complaint Transferred", "New Complaint", etc.
@@ -267,7 +289,7 @@ const Navbar = () => {
                             <div className="md:hidden">
                                 <button
                                     onClick={() => setMobileOpen(true)}
-                                    className="p-2 text-slate-500 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-all"
+                                    className="p-2 text-slate-500 hover:bg-indigo-50 hover:text-[#4338ca] rounded-xl transition-all"
                                 >
                                     <Menu size={22} />
                                 </button>
@@ -281,11 +303,11 @@ const Navbar = () => {
                             <div className="relative z-50" ref={notifRef}>
                                 <button
                                     onClick={() => setShowNotifications(!showNotifications)}
-                                    className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-orange-700 hover:bg-orange-50 shadow-sm transition-all relative"
+                                    className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#4338ca] hover:bg-indigo-50 shadow-sm transition-all relative"
                                 >
                                     <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
                                     {isPolling && (
-                                        <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></span>
+                                        <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
                                     )}
                                     {notifications.length > 0 && (
                                         <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
@@ -322,7 +344,7 @@ const Navbar = () => {
                                                         onClick={() => { setShowNotifications(false); setShowAllNotifications(true); }}
                                                         className="w-full py-2 text-xs font-black text-slate-500 hover:text-orange-600 hover:bg-white rounded-lg transition-colors flex items-center justify-center gap-1"
                                                     >
-                                                        See All History <ArrowRight size={12} />
+                                                        See More <ArrowRight size={12} />
                                                     </button>
                                                 </div>
                                             )}
@@ -341,11 +363,11 @@ const Navbar = () => {
                                         <span className="text-table-data font-black text-slate-800 leading-tight">
                                             {String(user.Username)}
                                         </span>
-                                        <span className="text-[10px] font-black text-orange-600 tracking-[0.05em] leading-none mt-1 opacity-70">
+                                        <span className="text-[10px] font-black text-[#4f46e5] tracking-[0.05em] leading-none mt-1 opacity-70">
                                             {user.Role === 'SUPER_ADMIN' ? 'System Master' : user.Role}
                                         </span>
                                     </div>
-                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 overflow-hidden border border-slate-200 shadow-sm group-hover:border-orange-200 transition-colors">
+                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 overflow-hidden border border-slate-200 shadow-sm group-hover:border-indigo-200 transition-colors">
                                         {user.ProfilePhoto ? (
                                             <img src={user.ProfilePhoto} alt="Profile" className="w-full h-full object-cover object-center" loading="lazy" />
                                         ) : (
@@ -371,7 +393,7 @@ const Navbar = () => {
                                                     className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-all group/item"
                                                 >
                                                     <div className="bg-slate-100 group-hover/item:bg-white group-hover/item:shadow-sm p-2 rounded-lg transition-all">
-                                                        <Shield size={18} className="text-slate-500 group-hover/item:text-emerald-500" />
+                                                        <Shield size={18} className="text-slate-500 group-hover/item:text-indigo-500" />
                                                     </div>
                                                     <div className="text-left">
                                                         <span className="font-bold text-sm block">My Profile</span>

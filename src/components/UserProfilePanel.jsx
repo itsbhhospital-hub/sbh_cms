@@ -56,14 +56,14 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
     const [error, setError] = useState('');
 
     const handleSave = async () => {
-        setLoading(true);
+        // Only set loader for the main user data update, image is now silent in background
         setError('');
         try {
             // 1. Upload Pending Image (if any)
             let finalPhotoUrl = formData.ProfilePhoto;
 
             if (pendingFile) {
-                // Upload to Drive & Get URL
+                // Upload to Drive & Get URL (NOW SILENT in sheetsService)
                 const result = await sheetsService.uploadProfileImage(pendingFile, formData.Username);
                 if (result.status === 'success') {
                     finalPhotoUrl = result.data.url;
@@ -73,14 +73,13 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
             }
 
             // 2. Commit All Changes (including new Photo URL)
+            setLoading(true); // START LOADER ONLY FOR FINAL DATA COMMIT
             const updatedData = { ...formData, ProfilePhoto: finalPhotoUrl };
             await onUpdate(updatedData);
 
             setSuccessMsg("Profile updated successfully");
             setIsEditing(false);
             setPendingFile(null); // Clear pending
-
-            // Auto close after success? Maybe let user see success message
         } catch (err) {
             console.error("Update failed", err);
             const msg = err.message || "Update failed";

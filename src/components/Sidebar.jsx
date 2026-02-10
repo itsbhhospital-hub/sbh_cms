@@ -56,10 +56,10 @@ const Sidebar = () => {
             }}
             className={({ isActive }) => `
                 relative flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl transition-all duration-300 group
-                font-body font-semibold tracking-wide mb-1 text-sm
+                font-ui font-semibold tracking-wide mb-1 text-[13.5px]
                 ${isActive
-                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-900/20 scale-[1.02]'
-                    : 'text-white/90 hover:bg-white/10 hover:text-white transition-all'
+                    ? 'bg-white/10 backdrop-blur-md text-white shadow-lg border border-white/20 scale-[1.02]'
+                    : 'text-white hover:bg-white/5 transition-all opacity-90 hover:opacity-100'
                 }
             `}
         >
@@ -68,7 +68,7 @@ const Sidebar = () => {
                     <Icon
                         size={18}
                         strokeWidth={isActive ? 2.5 : 2}
-                        className={`relative z-10 transition-colors duration-300 ${isActive ? 'text-white' : 'text-white/80 group-hover:text-white'}`}
+                        className={`relative z-10 transition-colors duration-300 ${isActive ? 'text-white' : 'text-white group-hover:text-white'}`}
                     />
 
                     {(!collapsed || mobileOpen || isHovered) && (
@@ -76,7 +76,7 @@ const Sidebar = () => {
                     )}
 
                     {isActive && (
-                        <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white shadow-sm shadow-emerald-500/50" />
+                        <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white shadow-sm shadow-indigo-500/50" />
                     )}
                 </>
             )}
@@ -96,7 +96,7 @@ const Sidebar = () => {
                 onMouseEnter={() => !mobileOpen && setIsHovered(true)}
                 onMouseLeave={() => !mobileOpen && setIsHovered(false)}
                 className={`fixed md:sticky top-0 left-0 z-[150] h-[100dvh] 
-                bg-gradient-to-b from-[#022c22] via-[#064e3b] to-[#065f46]
+                bg-gradient-to-b from-[#1e3a8a] via-[#4338ca] to-[#6366f1]
                 backdrop-blur-xl border-r border-white/5 shadow-[4px_0_24px_rgba(0,0,0,0.2)] 
                 flex flex-col justify-between transition-all duration-300 ease-in-out
                 ${mobileOpen ? 'translate-x-0 w-[80%] max-w-[300px]' : collapsed && !isHovered ? 'w-[80px] -translate-x-0' : 'translate-x-0 w-[260px]'}
@@ -118,7 +118,7 @@ const Sidebar = () => {
 
                 {/* Navigation Section */}
                 <nav className="px-2 py-4 overflow-y-auto custom-scrollbar flex-1">
-                    <div className="mb-2 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none opacity-80">
+                    <div className="mb-2 px-4 text-[11px] font-bold text-indigo-100 uppercase tracking-wider leading-none opacity-90">
                         {(!collapsed || mobileOpen || isHovered) && 'Hospital Services'}
                     </div>
 
@@ -131,7 +131,7 @@ const Sidebar = () => {
 
                     {(user.Role === 'admin' || user.Role === 'SUPER_ADMIN') && (
                         <>
-                            <div className="mt-6 mb-2 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none opacity-80">
+                            <div className="mt-6 mb-2 px-4 text-[11px] font-bold text-indigo-100 uppercase tracking-wider leading-none opacity-90">
                                 {(!collapsed || mobileOpen || isHovered) && 'System Management'}
                             </div>
                             {adminMenuItems.map((item) => (
@@ -151,7 +151,7 @@ const Sidebar = () => {
                                         <Clock className="animate-pulse" size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold text-emerald-100 tracking-wide leading-none mb-1 opacity-80 uppercase">Session Left</p>
+                                        <p className="text-[10px] font-bold text-indigo-100 tracking-wide leading-none mb-1 opacity-80 uppercase">Session Left</p>
                                         <p className="text-sm font-mono font-black text-white leading-none tracking-wider">{timeLeft || '--:--'}</p>
                                     </div>
                                 </div>

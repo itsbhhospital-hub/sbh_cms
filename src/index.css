@@ -2,64 +2,53 @@
 
 @layer base {
   :root {
-    /* Premium Fluent Green Palette - REFINED */
-    --primary-hospital-green: #059669;
-    /* Emerald 600 */
-    --bg-slate: #f8fafc;
-    /* Slate 50 */
-    --text-slate: #0f172a;
-    /* Slate 900 */
+    /* PREMIUM HOSPITAL THEME - Soft Navy Blue → Indigo → Violet */
+    --primary-hospital-blue: #1e3a8a;
+    /* Soft Navy */
+    --hospital-indigo: #4f46e5;
+    /* Indigo */
+    --hospital-violet: #6366f1;
+    /* Violet */
 
-    /* Fluent Premium Green Sidebar */
-    --sidebar-bg: #022c22;
-    /* Emerald 950 - Deep Base */
-    --sidebar-active: #059669;
-    /* Emerald 600 */
-    --sidebar-active-gradient: linear-gradient(135deg, #059669 0%, #047857 100%);
-    /* Emerald 600 -> 700 Soft Gradient */
-    --sidebar-hover: #064e3b;
-    /* Emerald 900 */
-    --sidebar-text: #ecfdf5;
-    /* Emerald 50 */
-    --sidebar-accent: #34d399;
-    /* Emerald 400 */
+    --bg-slate: #f8fafc;
+    --text-slate: #0f172a;
+
+    /* REFINED MENU THEME */
+    --sidebar-bg: linear-gradient(180deg, #1e3a8a 0%, #4338ca 70%, #6366f1 100%);
+    --sidebar-active: rgba(255, 255, 255, 0.15);
+    --sidebar-active-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 100%);
+    --sidebar-hover: rgba(255, 255, 255, 0.1);
+    --sidebar-text: #FFFFFF;
+    --sidebar-accent: #818cf8;
     --sidebar-offset: 0px;
 
     /* Theme Accents */
-    --theme-primary: #059669;
-    --theme-secondary: #047857;
-    --theme-bg-soft: #ecfdf5;
-    --theme-border-soft: #a7f3d0;
+    --theme-primary: #4338ca;
+    --theme-secondary: #3730a3;
+    --theme-bg-soft: #eef2ff;
+    --theme-border-soft: #c7d2fe;
 
-    /* Typography Scale */
-    --size-page-title: 24px;
-    --size-section-title: 18px;
-    --size-card-title: 16px;
+    /* Typography Scale - STRICT STANDARDIZATION */
+    --size-page-title: 20px;
+    --size-section-title: 15px;
+    --size-card-title: 15px;
     --size-stat-number: 28px;
-    --size-menu: 14px;
-    --size-table-header: 13px;
-    --size-table-content: 13px;
+    --size-menu: 13.5px;
+    /* Clean & Professional */
+    --size-table-header: 14px;
+    --size-table-content: 14px;
     --size-forms: 14px;
-    --size-labels: 12px;
-    --size-buttons: 14px;
-    --size-popup-title: 18px;
+    --size-labels: 14px;
+    --size-buttons: 15px;
+    --size-popup-title: 20px;
     --size-popup-text: 14px;
     --size-footer: 12px;
 
-    /* Table Styling Pack */
-    --table-header-bg: #f1f5f9;
-    --table-row-hover: #f8fafc;
-    --table-border: #e2e8f0;
-
-    /* Fonts - Safe Stack */
-    --font-primary: 'Inter', system-ui, -apple-system, sans-serif;
-    /* Headings */
-    --font-body: 'Roboto', system-ui, -apple-system, sans-serif;
-    /* Body Text */
-    --font-ui: 'Open Sans', system-ui, -apple-system, sans-serif;
-    /* UI Elements */
-    --font-data: 'Lato', system-ui, -apple-system, sans-serif;
-    /* Tables/Data */
+    /* Fonts - STRICT RULE: INTER PRIMARY */
+    --font-primary: 'Inter', 'Roboto', 'Segoe UI', Arial, sans-serif;
+    --font-body: 'Inter', 'Roboto', 'Segoe UI', Arial, sans-serif;
+    --font-ui: 'Inter', 'Roboto', 'Segoe UI', Arial, sans-serif;
+    --font-data: 'Inter', 'Roboto', 'Segoe UI', Arial, sans-serif;
   }
 
   * {
@@ -81,31 +70,26 @@
     font-family: var(--font-primary);
     font-size: var(--size-page-title);
     font-weight: 600;
-    /* Semibold per request */
-    letter-spacing: -0.025em;
+    letter-spacing: -0.01em;
   }
 
   .text-section-title {
     font-family: var(--font-primary);
     font-size: var(--size-section-title);
     font-weight: 600;
-    /* Semibold */
-    letter-spacing: -0.0125em;
+    letter-spacing: -0.01em;
   }
 
   .text-card-title {
     font-family: var(--font-primary);
     font-size: var(--size-card-title);
     font-weight: 600;
-    /* Semibold */
   }
 
   .text-stat-number {
     font-family: var(--font-primary);
-    /* Inter looks better for big numbers */
     font-size: var(--size-stat-number);
     font-weight: 700;
-    /* Bold */
     line-height: 1;
   }
 
@@ -113,35 +97,32 @@
     font-family: var(--font-ui);
     font-size: var(--size-menu);
     font-weight: 400;
-    /* Regular */
+    /* Normal */
   }
 
   .text-menu-active {
     font-family: var(--font-ui);
     font-size: var(--size-menu);
     font-weight: 600;
-    /* Semibold */
+    /* Bold Hierarchy */
   }
 
   .text-table-header {
     font-family: var(--font-ui);
     font-size: var(--size-table-header);
     font-weight: 600;
-    /* Semibold */
   }
 
   .text-table-data {
     font-family: var(--font-data);
     font-size: var(--size-table-content);
     font-weight: 400;
-    /* Regular */
   }
 
   .text-label {
     font-family: var(--font-ui);
     font-size: var(--size-labels);
-    font-weight: 500;
-    letter-spacing: 0.05em;
+    font-weight: 400;
   }
 
   .text-forms {
@@ -153,8 +134,24 @@
   .text-button {
     font-family: var(--font-ui);
     font-size: var(--size-buttons);
-    font-weight: 500;
-    /* Medium per request */
+    font-weight: 600;
+  }
+
+  /* GLOBAL PREMIUM BUTTONS - BLUE THEME */
+  .btn-premium {
+    @apply bg-gradient-to-r from-[#4338ca] to-[#6366f1] text-white font-semibold rounded-xl shadow-lg border border-white/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2;
+  }
+
+  .btn-premium:hover {
+    @apply from-[#4f46e5] to-[#818cf8] shadow-indigo-500/20 translate-y-[-1px];
+  }
+
+  .btn-premium-outline {
+    @apply bg-white border-2 border-[#4338ca] text-[#4338ca] font-semibold rounded-xl transition-all duration-300 active:scale-95 flex items-center justify-center gap-2;
+  }
+
+  .btn-premium-outline:hover {
+    @apply bg-indigo-50 border-[#6366f1] text-[#6366f1];
   }
 
   .text-popup-title {
@@ -178,7 +175,7 @@
   /* Compact Table Utilities */
   .table-compact th {
     padding: 0.75rem 1rem;
-    background-color: var(--table-header-bg) !important;
+    background-color: #f8fafc !important;
     border-bottom: 1px solid var(--table-border) !important;
   }
 
@@ -188,7 +185,7 @@
   }
 
   .table-compact tr:hover {
-    background-color: var(--table-row-hover) !important;
+    background-color: #f1f5f9 !important;
   }
 }
 

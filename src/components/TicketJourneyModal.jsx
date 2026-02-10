@@ -32,7 +32,15 @@ const TicketJourneyModal = ({ isOpen, onClose, ticket, transferLogs = [], extens
                 type: 'transfer',
                 date: new Date(t.TransferDate || t.Date),
                 title: 'Department Transferred',
-                subtitle: `From ${t.FromDept} to ${t.ToDept}`,
+                subtitle: (
+                    <div className="flex flex-col gap-1 mt-0.5">
+                        <span className="font-bold text-slate-700">From {t.FromDepartment || t.FromDept} to {t.NewDepartment || t.ToDept}</span>
+                        <div className="flex flex-col text-[10px] text-slate-500">
+                            <span>By: <span className="font-bold text-slate-600">{t.TransferredBy}</span></span>
+                            {t.Reason && <span className="italic mt-0.5">"Remark: {t.Reason}"</span>}
+                        </div>
+                    </div>
+                ),
                 icon: <Share2 size={10} />,
                 color: 'sky'
             });
@@ -117,11 +125,11 @@ const TicketJourneyModal = ({ isOpen, onClose, ticket, transferLogs = [], extens
                                     {ev.icon}
                                 </div>
                                 <div className={`p-4 rounded-xl border transition-all hover:shadow-md ${ev.color === 'green' ? 'bg-emerald-50/50 border-emerald-100' :
-                                        ev.color === 'blue' ? 'bg-blue-50/50 border-blue-100' :
-                                            ev.color === 'sky' ? 'bg-sky-50/50 border-sky-100' :
-                                                ev.color === 'amber' ? 'bg-amber-50/50 border-amber-100' :
-                                                    ev.color === 'orange' ? 'bg-orange-50/50 border-orange-100' :
-                                                        ev.color === 'purple' ? 'bg-purple-50/50 border-purple-100' : 'bg-slate-50 border-slate-100'}`}>
+                                    ev.color === 'blue' ? 'bg-blue-50/50 border-blue-100' :
+                                        ev.color === 'sky' ? 'bg-sky-50/50 border-sky-100' :
+                                            ev.color === 'amber' ? 'bg-amber-50/50 border-amber-100' :
+                                                ev.color === 'orange' ? 'bg-orange-50/50 border-orange-100' :
+                                                    ev.color === 'purple' ? 'bg-purple-50/50 border-purple-100' : 'bg-slate-50 border-slate-100'}`}>
                                     <div className="flex justify-between items-start mb-1">
                                         <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">{ev.title}</h5>
                                         <span className="text-[10px] font-bold text-slate-400 bg-white/50 px-1.5 py-0.5 rounded border border-slate-100 whitespace-nowrap ml-2">

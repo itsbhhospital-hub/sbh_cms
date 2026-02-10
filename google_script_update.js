@@ -10,7 +10,57 @@ const IST_TIMEZONE = "GMT+5:30";
 const DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS'+05:30'";
 
 function getISTTimestamp() {
-    return Utilities.formatDate(new Date(), IST_TIMEZONE, DATE_FORMAT);
+    return Utilities.formatDate(new Date(), IST_TIMEZONE, "dd-MM-yyyy hh:mm:ss a");
+}
+
+// --- MASTER HELPERS (NEW) ---
+
+function parseCustomDate(dateStr) {
+    if (!dateStr) return new Date();
+    // Handle "dd-MM-yyyy..." format which new Date() hates
+    // Remove possible leading '
+    const clean = String(dateStr).replace(/'/g, '').trim();
+
+    // Check if it matches dd-MM-yyyy
+    // Simple parsing assuming dd-MM-yyyy ...
+    // If native parse works (ISO), use it. Date.parse returns NaN if failed.
+    const ts = Date.parse(clean);
+    if (!isNaN(ts)) return new Date(ts);
+
+    // Manual Parse for dd-MM-yyyy
+    // Split by non-digits
+    const parts = clean.split(/[^0-9]/);
+    if (parts.length >= 3) {
+        // parts[0]=dd, parts[1]=MM, parts[2]=yyyy
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        if (year > 1900 && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+            return new Date(year, month, day);
+        }
+    }
+    return new Date(); // Fallback to now or invalid
+}
+
+function getOrCreateSheet(sheetName, headers) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+        if (headers && headers.length > 0) {
+            sheet.appendRow(headers);
+            sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+        }
+    }
+    return sheet;
+}
+
+function formatDateIST(dateObj) {
+    return Utilities.formatDate(new Date(dateObj), IST_TIMEZONE, "dd-MM-yyyy");
+}
+
+function formatTimeIST(dateObj) {
+    return Utilities.formatDate(new Date(dateObj), IST_TIMEZONE, "hh:mm:ss a");
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -41,7 +91,7 @@ function onEditTrigger(e) {
                     sendResolutionNotification(ticketId, reportedBy, newStatus, resolver, 'Manual Sheet Update');
                     const historyCol = colMap.History;
                     if (historyCol) {
-                        const timestamp = getISTTimestamp();
+                        const timestamp = "'" + getISTTimestamp(); // Prepend "'"
                         const msg = `[${timestamp}] ${newStatus.toUpperCase()} (Manual Edit). Action by Sheet User.`;
                         const currentHist = sheet.getRange(row, historyCol).getValue();
                         sheet.getRange(row, historyCol).setValue(currentHist ? currentHist + '\n' + msg : msg);
@@ -207,9 +257,9 @@ function updateUserIP(doc, username, ip) {
             if (ipColIdx > -1) sheet.getRange(row, ipColIdx + 1).setValue(ip);
 
             // Update Login Timestamps
-            if (dateColIdx > -1) sheet.getRange(row, dateColIdx + 1).setValue(dateStr);
-            if (timeColIdx > -1) sheet.getRange(row, timeColIdx + 1).setValue(timeStr);
-            if (fullLoginColIdx > -1) sheet.getRange(row, fullLoginColIdx + 1).setValue(now.toISOString());
+            if (dateColIdx > -1) sheet.getRange(row, dateColIdx + 1).setValue("'" + dateStr); // Prepend "'"
+            if (timeColIdx > -1) sheet.getRange(row, timeColIdx + 1).setValue("'" + timeStr); // Prepend "'"
+            if (fullLoginColIdx > -1) sheet.getRange(row, fullLoginColIdx + 1).setValue("'" + now.toISOString()); // Prepend "'"
 
             return { success: true };
         }
@@ -251,7 +301,7 @@ function findCol(headers, target) {
 
 function getColMap(headers) {
     const map = {};
-    const keys = ['ID', 'Date', 'Department', 'Description', 'Status', 'ReportedBy', 'ResolvedBy', 'Remark', 'Username', 'Password', 'Role', 'Mobile', 'Resolved Date', 'Unit', 'History', 'TargetDate', 'Reopened Date', 'Rating', 'ProfilePhoto', 'LastLogin', 'LastLoginIP', 'LastLoginDate', 'LastLoginTime'];
+    const keys = ['ID', 'Date', 'Time', 'Department', 'Description', 'Status', 'ReportedBy', 'ResolvedBy', 'Remark', 'Username', 'Password', 'Role', 'Mobile', 'Resolved Date', 'Unit', 'History', 'TargetDate', 'Reopened Date', 'Rating', 'ProfilePhoto', 'LastLogin', 'LastLoginIP', 'LastLoginDate', 'LastLoginTime'];
     keys.forEach(k => {
         const idx = findCol(headers, k);
         if (idx !== -1) map[k] = idx;
@@ -344,7 +394,7 @@ function createComplaint(payload) {
     let colMap = getColMap(headers);
 
     // Self Healing
-    const essentialCols = ['Unit', 'History', 'TargetDate', 'Resolved Date', 'Rating'];
+    const essentialCols = ['Unit', 'History', 'TargetDate', 'Resolved Date', 'Rating', 'Time'];
     let mappingUpdated = false;
     essentialCols.forEach(colName => {
         if (!colMap[colName]) {
@@ -371,12 +421,17 @@ function createComplaint(payload) {
         if (match) newId = 'SBH' + String(parseInt(match[1], 10) + 1).padStart(5, '0');
     }
 
-    const timestamp = getISTTimestamp();
-    const historyLog = `[${timestamp}] Ticket Created by ${payload.ReportedBy}`;
+    const timestamp = "'" + getISTTimestamp(); // Prepend "'"
+    const now = new Date();
+    const dateOnly = formatDateIST(now); // DD MMM YYYY
+    const timeOnly = formatTimeIST(now); // hh:mm a
+
+    const historyLog = `[${timestamp}] TICKET REGISTERED by ${payload.ReportedBy}`;
 
     const fields = {
         'ID': newId,
-        'Date': timestamp,
+        'Date': timestamp, // CHANGED: Now saves Full Timestamp (Date + Time)
+        'Time': timeOnly,
         'Department': payload.Department,
         'Description': payload.Description,
         'Status': 'Open',
@@ -387,7 +442,14 @@ function createComplaint(payload) {
     };
 
     Object.keys(fields).forEach(f => {
-        if (colMap[f]) sheet.getRange(nextRow, colMap[f]).setValue(fields[f]);
+        if (colMap[f]) {
+            let val = fields[f];
+            // Force String for Date/Time columns to prevent auto-formatting issues
+            if (f === 'Date' || f === 'Time' || f === 'Resolved Date' || f === 'Reopened Date' || f === 'TargetDate') {
+                val = "'" + val;
+            }
+            sheet.getRange(nextRow, colMap[f]).setValue(val);
+        }
     });
 
     sendNewComplaintNotifications(payload.Department, newId, payload.ReportedBy, payload.Description);
@@ -441,7 +503,7 @@ function updateComplaintStatus(payload) {
     }
     if (rowIndex === -1) return response('error', 'Complaint not found');
 
-    const timestamp = getISTTimestamp();
+    const timestamp = "'" + getISTTimestamp(); // Prepend "'"
     const currentHistory = colMap.History ? String(sheet.getRange(rowIndex, colMap.History).getValue()) : '';
     const currentStatus = (colMap.Status && rowIndex > 1) ? String(data[rowIndex - 1][colMap.Status - 1] || '').trim() : '';
     let actionLog = '';
@@ -452,7 +514,7 @@ function updateComplaintStatus(payload) {
         const diff = oldTarget ? Math.ceil((new Date(payload.TargetDate) - new Date(oldTarget)) / (1000 * 60 * 60 * 24)) : 0;
 
         actionLog = `[${timestamp}] Extended by ${payload.ResolvedBy}. Reason: ${payload.Remark}`;
-        if (colMap.TargetDate) sheet.getRange(rowIndex, colMap.TargetDate).setValue(payload.TargetDate || '');
+        if (colMap.TargetDate) sheet.getRange(rowIndex, colMap.TargetDate).setValue("'" + (payload.TargetDate || ''));
 
         logCaseExtend({
             complaint_id: payload.ID,
@@ -470,7 +532,7 @@ function updateComplaintStatus(payload) {
     else if (payload.Status === 'Force Close') {
         actionLog = `[${timestamp}] FORCE CLOSED by ${payload.ResolvedBy}. Reason: ${payload.Remark}`;
         if (colMap.Status) sheet.getRange(rowIndex, colMap.Status).setValue('Closed');
-        if (colMap['Resolved Date']) sheet.getRange(rowIndex, colMap['Resolved Date']).setValue(timestamp);
+        if (colMap['Resolved Date']) sheet.getRange(rowIndex, colMap['Resolved Date']).setValue("'" + timestamp);
 
         // Template 6: Force Close
         sendForceCloseNotification(payload.ID, data[rowIndex - 1][colMap.ReportedBy - 1], payload.Remark);
@@ -515,7 +577,7 @@ function updateComplaintStatus(payload) {
 
         // Finalize Dates
         if (payload.Status === 'Closed' && colMap['Resolved Date'] && !String(sheet.getRange(rowIndex, colMap['Resolved Date']).getValue()).trim()) {
-            sheet.getRange(rowIndex, colMap['Resolved Date']).setValue(timestamp);
+            sheet.getRange(rowIndex, colMap['Resolved Date']).setValue("'" + timestamp);
         }
         if (colMap.Remark) sheet.getRange(rowIndex, colMap.Remark).setValue(payload.Remark || '');
 
@@ -528,7 +590,7 @@ function updateComplaintStatus(payload) {
         if (payload.Status === 'Open' && currentStatus === 'Closed') {
             const originalStaff = colMap.ResolvedBy ? data[rowIndex - 1][colMap.ResolvedBy - 1] : null;
             if (originalStaff) sendReopenNotification(payload.ID, originalStaff, payload.ResolvedBy, payload.Remark);
-            if (colMap['Reopened Date']) sheet.getRange(rowIndex, colMap['Reopened Date']).setValue(getISTTimestamp());
+            if (colMap['Reopened Date']) sheet.getRange(rowIndex, colMap['Reopened Date']).setValue("'" + getISTTimestamp());
 
             const L3 = getEscalationContact('L3');
             if (L3 && L3.mobile) sendWhatsApp(L3.mobile, `L3 ESCALATION: Ticket #${payload.ID} Re-opened by ${payload.ResolvedBy}.`);
@@ -552,6 +614,10 @@ function updateComplaintStatus(payload) {
     }
 
     SpreadsheetApp.flush();
+
+    // PART 6 & 11: UNIVERSAL SYNC (Update Delayed & Transferred Sheets)
+    updateTicketStatusEverywhere(payload.ID, payload.Status);
+
     return response('success', 'Status Updated');
 }
 
@@ -582,8 +648,8 @@ function transferComplaint(payload) {
     const datePart = Utilities.formatDate(now, IST_TIMEZONE, 'dd MMM yyyy');
     const timePart = Utilities.formatDate(now, IST_TIMEZONE, 'hh:mm a');
 
-    // Custom formatted message for Ticket Journey
-    const msg = `Transferred by ${payload.TransferredBy} to ${payload.NewDepartment} on ${datePart} at ${timePart}. Reason: ${payload.Reason}`;
+    // Custom formatted message for Ticket Journey (STRICT FORMAT)
+    const msg = `Case transferred by ${payload.TransferredBy}\nFrom ${oldDept} -> ${payload.NewDepartment}\nOn ${datePart} at ${timePart}`;
 
     if (colMap.History) {
         const cur = sheet.getRange(rowIndex, colMap.History).getValue();
@@ -777,15 +843,31 @@ function sendNewComplaintNotifications(dept, id, reporter, desc) {
     });
 }
 
-// PART 2 & 3: DAILY REMINDERS & ESCALATION (10:00 AM)
+// PART 2 & 3: DAILY REMINDERS & AUTOMATED DELAY SYSTEM (Run at 12:00 AM)
 function checkPendingStatus() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('data');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('data');
     if (!sheet) return;
+
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const colMap = getColMap(headers);
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // 1. PREPARE DELAYED SHEET
+    // Define headers for the new sheet
+    const delayedHeaders = ['Ticket ID', 'Department', 'Registered Date', 'Registered Time', 'Delayed Date', 'Status'];
+    const delayedSheet = getOrCreateSheet('Delayed_Cases', delayedHeaders);
+
+    // Cache existing Delayed IDs to prevent duplicates for the same day
+    const delayedData = delayedSheet.getDataRange().getValues();
+    const existingDelayedIDs = new Set();
+    for (let d = 1; d < delayedData.length; d++) {
+        // ID is column 0
+        existingDelayedIDs.add(String(delayedData[d][0]));
+    }
 
     const L1 = getEscalationContact('L1'); // Director
     const L2 = getEscalationContact('L2'); // Senior
@@ -794,12 +876,17 @@ function checkPendingStatus() {
     for (let i = 1; i < data.length; i++) {
         const status = String(data[i][colMap.Status - 1] || '').trim().toLowerCase();
 
-        if (status !== 'open' && status !== 'pending' && status !== 'in-progress' && status !== 're-open' && status !== 'delayed') continue;
+        // Check Open, Pending, In-Progress, Re-Open, Delayed OR TRANSFERRED
+        // (We continue monitoring Delayed tickets for escalations)
+        // Check Open, Pending, In-Progress, Re-Open, Delayed OR TRANSFERRED
+        // (We continue monitoring Delayed tickets for escalations)
+        if (status !== 'open' && status !== 'pending' && status !== 'in-progress' && status !== 're-open' && status !== 'delayed' && status !== 'transferred') continue;
 
         const dateStr = data[i][colMap.Date - 1];
         if (!dateStr) continue;
 
-        const createdDate = new Date(dateStr);
+        const createdDate = parseCustomDate(dateStr); // FIXED: Custom Parser
+        // Calculate difference in DAYS
         const diffTime = today - new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
@@ -807,30 +894,52 @@ function checkPendingStatus() {
         const dept = data[i][colMap.Department - 1];
 
         if (diffDays >= 1) {
-            // 1. AUTO-DELAY: Mark as Delayed if not already
-            if (status !== 'delayed') {
-                if (colMap.Status) sheet.getRange(i + 1, colMap.Status).setValue('Delayed');
-                const historyCol = colMap.History;
-                if (historyCol) {
-                    const timestamp = getISTTimestamp();
-                    const msg = `[${timestamp}] AUTO-DELAY: System marked as Delayed (Overdue by ${diffDays} days).`;
-                    const currentHist = sheet.getRange(i + 1, historyCol).getValue();
-                    sheet.getRange(i + 1, historyCol).setValue(currentHist ? currentHist + '\n' + msg : msg);
+            // 2. AUTO-DELAY LOGIC (Part 1 of Request)
+            // If overdue by 1+ day, add to Delayed_Cases layout
+            if (!existingDelayedIDs.has(String(id))) {
+                delayedSheet.appendRow([
+                    id,
+                    dept,
+                    formatDateIST(createdDate), // Registered Date
+                    formatTimeIST(createdDate), // Registered Time
+                    formatDateIST(today),       // Delayed Date (Today)
+                    'Delayed'                   // Status starts as Delayed
+                ]);
+                existingDelayedIDs.add(String(id)); // Prevent re-adding
+
+                // Update Master Sheet Status to 'Delayed' IF it wasn't already
+                if (status !== 'delayed') {
+                    if (colMap.Status) sheet.getRange(i + 1, colMap.Status).setValue('Delayed');
+
+                    // Log Journey (Exact Text Request)
+                    const historyCol = colMap.History;
+                    if (historyCol) {
+                        const now = new Date();
+                        const d = formatDateIST(now);
+                        const t = formatTimeIST(now);
+                        const msg = `Case marked as DELAYED\nDate: ${d}\nTime: ${t}`;
+                        const currentHist = sheet.getRange(i + 1, historyCol).getValue();
+                        sheet.getRange(i + 1, historyCol).setValue(currentHist ? currentHist + '\n' + msg : msg);
+                    }
+
+                    // Send Delay WhatsApp (Exact Template Request)
+                    // Send Delay WhatsApp (Exact Template Request)
+                    const delayMsg = `⚠️ Delay Alert\nTicket ID: ${id}\nDepartment: ${dept}\nThis complaint was not resolved on the same day and has been marked as DELAYED.\nPlease take immediate action.\n\n— SBH Group of Hospitals`;
+
+                    // Send to Department Staff
+                    sendDeptReminder(id, dept, delayMsg, "DIRECT_MSG");
                 }
             }
 
-            // 2. ESCALATION & REMINDERS (Preserve existing logic flows)
+            // 3. ESCALATION & REMINDERS (Preserve existing logic flows)
             if (diffDays === 1) {
-                sendDeptReminder(id, dept, dateStr, "REMINDER");
+                // Already sent above as part of Delay Logic
             }
             else if (diffDays === 2) {
                 sendDeptReminder(id, dept, diffDays, "WARNING");
             }
             else if (diffDays === 3) {
                 if (L2 && L2.mobile) sendEscalationMsg(L2.mobile, "L2 Officer", id, dept, diffDays, dateStr);
-            }
-            else if (diffDays >= 4) {
-                if (L1 && L1.mobile) sendEscalationMsg(L1.mobile, "L1 (DIRECTOR)", id, dept, diffDays, dateStr);
             }
         }
     }
@@ -855,7 +964,10 @@ function sendDeptReminder(id, dept, extraParam, type) {
     [...new Set(staffMobiles)].forEach(m => {
         if (m) {
             let msg = "";
-            if (type === "REMINDER") {
+            if (type === "DIRECT_MSG") {
+                msg = extraParam; // Raw message passed
+            }
+            else if (type === "REMINDER") {
                 const dateStr = extraParam instanceof Date ? extraParam.toLocaleDateString() : new Date(extraParam).toLocaleDateString();
                 msg = `⚠️ *Delay Alert – Action Required*\n\nTicket ID: ${id}\nDepartment: ${dept}\nRegistered Date: ${dateStr}\n\nThis complaint is still pending.\nPlease resolve it as soon as possible.\n\nSBH Group of Hospitals\n_Automated Notification_`;
             } else if (type === "WARNING") {
@@ -975,7 +1087,7 @@ function logToAuditHistory(p) {
         sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('history');
         sheet.appendRow(['Date', 'Ticket ID', 'Action', 'Performed By', 'Remarks', 'Old Status', 'New Status', 'Rating']);
     }
-    sheet.appendRow([getISTTimestamp(), p.ID, p.Action, p.By, p.Remark, p.OldStatus, p.NewStatus, p.Rating || '']);
+    sheet.appendRow(["'" + getISTTimestamp(), p.ID, p.Action, p.By, p.Remark, p.OldStatus, p.NewStatus, p.Rating || '']);
 }
 
 function logRating(p) {
@@ -985,7 +1097,7 @@ function logRating(p) {
         sheet = ss.insertSheet('Complaint_Ratings');
         sheet.appendRow(['Date', 'Ticket ID', 'Staff Name', 'Reporter Name', 'Rating', 'Feedback']);
     }
-    sheet.appendRow([getISTTimestamp(), p.ID, p.Resolver, p.Reporter, p.Rating, p.Remark]);
+    sheet.appendRow(["'" + getISTTimestamp(), p.ID, p.Resolver, p.Reporter, p.Rating, p.Remark]);
 }
 
 function logCaseTransfer(p) {
@@ -996,7 +1108,7 @@ function logCaseTransfer(p) {
         sheet.appendRow(['complaint_id', 'transferred_by', 'from_department', 'to_department', 'to_user', 'transfer_time', 'reason']);
         sheet.setFrozenRows(1);
     }
-    sheet.appendRow([p.complaint_id, p.transferred_by, p.from_department, p.to_department, p.to_user, p.transfer_time, p.reason]);
+    sheet.appendRow([p.complaint_id, p.transferred_by, p.from_department, p.to_department, p.to_user, "'" + p.transfer_time, p.reason]);
 }
 
 function logCaseExtend(p) {
@@ -1007,7 +1119,7 @@ function logCaseExtend(p) {
         sheet.appendRow(['complaint_id', 'extended_by', 'old_target_date', 'new_target_date', 'diff_days', 'extension_time', 'reason']);
         sheet.setFrozenRows(1);
     }
-    sheet.appendRow([p.complaint_id, p.extended_by, p.old_target_date, p.new_target_date, p.diff_days, p.extension_time, p.reason]);
+    sheet.appendRow([p.complaint_id, p.extended_by, p.old_target_date, p.new_target_date, p.diff_days, "'" + p.extension_time, p.reason]);
 }
 
 function isAlreadyRated(id, reporter) {
@@ -1104,4 +1216,46 @@ function getEscalationContact(level) {
     const data = sheet.getDataRange().getValues();
     const row = data.find(r => String(r[0]).trim().toUpperCase() === String(level).toUpperCase());
     return row ? { name: row[1], mobile: row[2] } : null;
+}
+
+/**
+ * PART 6 & 11: SYNC STATUS ACROSS ALL SHEETS
+ * If a ticket is Closed/Resolved in any panel, it must be updated in:
+ * - Master Sheet (Done in updateComplaintStatus)
+ * - Delayed_Cases Sheet
+ * - Transferred_Cases Sheet
+ */
+function updateTicketStatusEverywhere(ticketId, newStatus) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetsToSync = ['Delayed_Cases', 'Transferred_Cases'];
+    const searchId = String(ticketId).toLowerCase().trim();
+
+    sheetsToSync.forEach(sheetName => {
+        const sheet = ss.getSheetByName(sheetName);
+        if (!sheet) return;
+
+        const data = sheet.getDataRange().getValues();
+        if (data.length <= 1) return;
+
+        const headers = data[0];
+        let idIdx = -1;
+        let statusIdx = -1;
+
+        headers.forEach((h, i) => {
+            const H = String(h).toLowerCase().trim();
+            if (H.includes('id') || H === 'ticket id' || H === 'complaintid') idIdx = i;
+            if (H === 'status') statusIdx = i;
+        });
+
+        if (idIdx === -1 || statusIdx === -1) return;
+
+        for (let i = 1; i < data.length; i++) {
+            if (String(data[i][idIdx]).toLowerCase().trim() === searchId) {
+                // If status is different, update it
+                if (String(data[i][statusIdx]).toLowerCase() !== String(newStatus).toLowerCase()) {
+                    sheet.getRange(i + 1, statusIdx + 1).setValue(newStatus);
+                }
+            }
+        }
+    });
 }
