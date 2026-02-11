@@ -113,6 +113,31 @@ function doGet(e) {
     const sheetName = e.parameter.sheet || 'data';
 
     if (action === 'read') return readData(sheetName);
+
+    // NEW PAGINATION & PERFORMANCE HANDLERS
+    if (action === 'getComplaintsPaginated') {
+        return getComplaintsPaginated(
+            parseInt(e.parameter.page || 1),
+            parseInt(e.parameter.limit || 10),
+            e.parameter.department,
+            e.parameter.status,
+            e.parameter.search,
+            e.parameter.reporter,
+            e.parameter.resolver,
+            e.parameter.viewer,      // NEW
+            e.parameter.viewerRole,  // NEW
+            e.parameter.viewerDept   // NEW
+        );
+    }
+    if (action === 'getUserPerformance') {
+        return getUserPerformance(e.parameter.username);
+    }
+    if (action === 'getDashboardStats') {
+        return getDashboardStats(e.parameter.username, e.parameter.department, e.parameter.role);
+    }
+    if (action === 'getComplaintById') {
+        return getComplaintById(e.parameter.id);
+    }
     return response('error', 'Invalid action');
 }
 
@@ -356,9 +381,14 @@ function ensureAdminExists(sheet) {
         if (map.Password) sheet.getRange(nextRow, map.Password).setValue('Am@321');
         if (map.Role) sheet.getRange(nextRow, map.Role).setValue('SUPER_ADMIN');
         if (map.Department) sheet.getRange(nextRow, map.Department).setValue('ADMIN');
-        if (map.Status) sheet.getRange(nextRow, map.Status).setValue('Active');
-        if (map.Mobile) sheet.getRange(nextRow, map.Mobile).setValue('0000000000');
-        SpreadsheetApp.flush();
+    }
+
+    // CLEANUP: Delete legacy placeholders
+    for (let i = sheet.getLastRow(); i > 1; i--) {
+        const val = strictNorm(sheet.getRange(i, map.Username).getValue());
+        if (val === 'admin' || val === 'superadmin' || val === 'super_admin') {
+            sheet.deleteRow(i);
+        }
     }
 
     // CLEANUP: Delete legacy placeholders
@@ -426,7 +456,7 @@ function createComplaint(payload) {
     const dateOnly = formatDateIST(now); // DD MMM YYYY
     const timeOnly = formatTimeIST(now); // hh:mm a
 
-    const historyLog = `[${timestamp}] TICKET REGISTERED by ${payload.ReportedBy}`;
+    const historyLog = '[' + timestamp + '] TICKET REGISTERED by ' + payload.ReportedBy;
 
     const fields = {
         'ID': newId,
@@ -513,7 +543,7 @@ function updateComplaintStatus(payload) {
         const oldTarget = colMap.TargetDate ? String(data[rowIndex - 1][colMap.TargetDate - 1] || '') : 'None';
         const diff = oldTarget ? Math.ceil((new Date(payload.TargetDate) - new Date(oldTarget)) / (1000 * 60 * 60 * 24)) : 0;
 
-        actionLog = `[${timestamp}] Extended by ${payload.ResolvedBy}. Reason: ${payload.Remark}`;
+        actionLog = '[' + timestamp + '] Extended by ' + payload.ResolvedBy + '.Reason: ' + payload.Remark;
         if (colMap.TargetDate) sheet.getRange(rowIndex, colMap.TargetDate).setValue("'" + (payload.TargetDate || ''));
 
         logCaseExtend({
@@ -530,12 +560,14 @@ function updateComplaintStatus(payload) {
     }
     // 2. FORCE CLOSE
     else if (payload.Status === 'Force Close') {
-        actionLog = `[${timestamp}] FORCE CLOSED by ${payload.ResolvedBy}. Reason: ${payload.Remark}`;
+        actionLog = '[' + timestamp + '] FORCE CLOSED by ' + payload.ResolvedBy + '.Reason: ' + payload.Remark;
         if (colMap.Status) sheet.getRange(rowIndex, colMap.Status).setValue('Closed');
         if (colMap['Resolved Date']) sheet.getRange(rowIndex, colMap['Resolved Date']).setValue("'" + timestamp);
 
         // Template 6: Force Close
         sendForceCloseNotification(payload.ID, data[rowIndex - 1][colMap.ReportedBy - 1], payload.Remark);
+        SpreadsheetApp.flush();
+        updateUserMetrics(payload.ResolvedBy);
     }
     // 3. STANDARD
     else {
@@ -551,7 +583,7 @@ function updateComplaintStatus(payload) {
         // History Log
         if ((payload.Status === 'Open' || payload.Status === 'Closed') && payload.Status !== currentStatus) {
             const label = (payload.Status === 'Open' && currentStatus === 'Closed') ? 'RE-OPEN' : payload.Status.toUpperCase();
-            actionLog = `[${timestamp}] ${label} by ${payload.ResolvedBy}. Remark: ${payload.Remark}`;
+            actionLog = '[' + timestamp + '] ' + label + ' by ' + payload.ResolvedBy + '.Remark: ' + payload.Remark;
         }
 
         // Rating
@@ -578,6 +610,8 @@ function updateComplaintStatus(payload) {
         // Finalize Dates
         if (payload.Status === 'Closed' && colMap['Resolved Date'] && !String(sheet.getRange(rowIndex, colMap['Resolved Date']).getValue()).trim()) {
             sheet.getRange(rowIndex, colMap['Resolved Date']).setValue("'" + timestamp);
+            SpreadsheetApp.flush();
+            updateUserMetrics(payload.ResolvedBy);
         }
         if (colMap.Remark) sheet.getRange(rowIndex, colMap.Remark).setValue(payload.Remark || '');
 
@@ -593,7 +627,7 @@ function updateComplaintStatus(payload) {
             if (colMap['Reopened Date']) sheet.getRange(rowIndex, colMap['Reopened Date']).setValue("'" + getISTTimestamp());
 
             const L3 = getEscalationContact('L3');
-            if (L3 && L3.mobile) sendWhatsApp(L3.mobile, `L3 ESCALATION: Ticket #${payload.ID} Re-opened by ${payload.ResolvedBy}.`);
+            if (L3 && L3.mobile) sendWhatsApp(L3.mobile, 'L3 ESCALATION: Ticket #' + payload.ID + ' Re - opened by ' + payload.ResolvedBy + '.');
         }
     }
 
@@ -649,7 +683,7 @@ function transferComplaint(payload) {
     const timePart = Utilities.formatDate(now, IST_TIMEZONE, 'hh:mm a');
 
     // Custom formatted message for Ticket Journey (STRICT FORMAT)
-    const msg = `Case transferred by ${payload.TransferredBy}\nFrom ${oldDept} -> ${payload.NewDepartment}\nOn ${datePart} at ${timePart}`;
+    const msg = 'Case transferred by ' + payload.TransferredBy + ' \nFrom ' + oldDept + ' -> ' + payload.NewDepartment + ' \nOn ' + datePart + ' at ' + timePart;
 
     if (colMap.History) {
         const cur = sheet.getRange(rowIndex, colMap.History).getValue();
@@ -751,7 +785,7 @@ function changePassword(p) {
             return response('success', 'Changed');
         }
     }
-    return response('error', `User not found (Looked for: "${target}")`);
+    return response('error', 'User not found(Looked for: "' + target + '")');
 }
 
 function deleteUser(p) {
@@ -830,13 +864,30 @@ function sendNewComplaintNotifications(dept, id, reporter, desc) {
     }
 
     if (userMobile) {
-        const msg = `📌 *COMPLAINT REGISTERED*\n\nDear ${reporter},\nYour complaint has been logged successfully.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n📝 *Issue:* ${desc}\n\nWe will update you shortly.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '📌 * COMPLAINT REGISTERED *\n\n' +
+            'Dear ' + reporter + ', \n' +
+            'Your complaint has been logged successfully.\n\n' +
+            '🔹 * Ticket ID:* ' + id + ' \n' +
+            '📍 * Department:* ' + dept + ' \n' +
+            '📝 * Issue:* ' + desc + ' \n\n' +
+            'We will update you shortly.\n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(userMobile, msg);
     }
 
     [...new Set(staffMobiles)].forEach(m => {
         if (m && m !== userMobile) {
-            const msg = `🚨 *NEW COMPLAINT ALERT*\n\nAttention Team,\nA new ticket requires your action.\n\n🔹 *Ticket ID:* ${id}\n📍 *Department:* ${dept}\n👤 *Reporter:* ${reporter}\n📝 *Issue:* ${desc}\n\nPlease check CMS and resolve.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+            const msg = '🚨 * NEW COMPLAINT ALERT *\n\n' +
+                'Attention Team, \n' +
+                'A new ticket requires your action.\n\n' +
+                '🔹 * Ticket ID:* ' + id + ' \n' +
+                '📍 * Department:* ' + dept + ' \n' +
+                '👤 * Reporter:* ' + reporter + ' \n' +
+                '📝 * Issue:* ' + desc + ' \n\n' +
+                'Please check CMS and resolve.\n\n' +
+                'SBH Group Of Hospitals\n' +
+                '_Automated System Notification_';
             sendWhatsApp(m, msg);
             Utilities.sleep(800);
         }
@@ -873,73 +924,86 @@ function checkPendingStatus() {
     const L2 = getEscalationContact('L2'); // Senior
     const L3 = getEscalationContact('L3'); // Junior/Lead
 
+    const targetDateIdx = findCol(headers, 'TargetDate') - 1;
+
     for (let i = 1; i < data.length; i++) {
         const status = String(data[i][colMap.Status - 1] || '').trim().toLowerCase();
 
         // Check Open, Pending, In-Progress, Re-Open, Delayed OR TRANSFERRED
-        // (We continue monitoring Delayed tickets for escalations)
-        // Check Open, Pending, In-Progress, Re-Open, Delayed OR TRANSFERRED
-        // (We continue monitoring Delayed tickets for escalations)
         if (status !== 'open' && status !== 'pending' && status !== 'in-progress' && status !== 're-open' && status !== 'delayed' && status !== 'transferred') continue;
 
         const dateStr = data[i][colMap.Date - 1];
         if (!dateStr) continue;
 
-        const createdDate = parseCustomDate(dateStr); // FIXED: Custom Parser
-        // Calculate difference in DAYS
-        const diffTime = today - new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const createdDate = parseCustomDate(dateStr);
+        let targetDate = targetDateIdx > -1 ? parseCustomDate(data[i][targetDateIdx]) : null;
+
+        // Default Target: 24h from Creation if not set
+        if (!targetDate && createdDate) {
+            targetDate = new Date(createdDate);
+            targetDate.setHours(targetDate.getHours() + 24);
+        }
+
+        // Calculate Delay based on Target Date
+        let diffDays = 0;
+        if (targetDate && now > targetDate) {
+            diffDays = Math.ceil((now - targetDate) / (1000 * 60 * 60 * 24));
+        }
 
         const id = data[i][colMap.ID - 1];
         const dept = data[i][colMap.Department - 1];
 
         if (diffDays >= 1) {
-            // 2. AUTO-DELAY LOGIC (Part 1 of Request)
-            // If overdue by 1+ day, add to Delayed_Cases layout
+            // 2. AUTO-DELAY LOGIC
             if (!existingDelayedIDs.has(String(id))) {
                 delayedSheet.appendRow([
                     id,
                     dept,
-                    formatDateIST(createdDate), // Registered Date
-                    formatTimeIST(createdDate), // Registered Time
-                    formatDateIST(today),       // Delayed Date (Today)
-                    'Delayed'                   // Status starts as Delayed
+                    formatDateIST(createdDate),
+                    formatTimeIST(createdDate),
+                    formatDateIST(today),
+                    'Delayed'
                 ]);
-                existingDelayedIDs.add(String(id)); // Prevent re-adding
+                existingDelayedIDs.add(String(id));
 
-                // Update Master Sheet Status to 'Delayed' IF it wasn't already
                 if (status !== 'delayed') {
                     if (colMap.Status) sheet.getRange(i + 1, colMap.Status).setValue('Delayed');
 
-                    // Log Journey (Exact Text Request)
+                    // Log Journey
                     const historyCol = colMap.History;
                     if (historyCol) {
-                        const now = new Date();
                         const d = formatDateIST(now);
                         const t = formatTimeIST(now);
-                        const msg = `Case marked as DELAYED\nDate: ${d}\nTime: ${t}`;
+                        const msg = 'Case marked as DELAYED\n' +
+                            'Date: ' + d + ' \n' +
+                            'Time: ' + t;
                         const currentHist = sheet.getRange(i + 1, historyCol).getValue();
                         sheet.getRange(i + 1, historyCol).setValue(currentHist ? currentHist + '\n' + msg : msg);
                     }
 
-                    // Send Delay WhatsApp (Exact Template Request)
-                    // Send Delay WhatsApp (Exact Template Request)
-                    const delayMsg = `⚠️ Delay Alert\nTicket ID: ${id}\nDepartment: ${dept}\nThis complaint was not resolved on the same day and has been marked as DELAYED.\nPlease take immediate action.\n\n— SBH Group of Hospitals`;
-
-                    // Send to Department Staff
+                    // Send Delay WhatsApp
+                    const delayMsg = '⚠️ Delay Alert\n' +
+                        'Ticket ID: ' + id + ' \n' +
+                        'Department: ' + dept + ' \n' +
+                        'Days Overdue: ' + diffDays + ' \n' +
+                        'Please take immediate action.\n\n' +
+                        '— SBH Group of Hospitals';
                     sendDeptReminder(id, dept, delayMsg, "DIRECT_MSG");
                 }
             }
 
-            // 3. ESCALATION & REMINDERS (Preserve existing logic flows)
-            if (diffDays === 1) {
-                // Already sent above as part of Delay Logic
-            }
-            else if (diffDays === 2) {
+            // 3. ESCALATION & REMINDERS
+            // Level 1 Escalation (Day 2 of Delay)
+            if (diffDays === 2) {
                 sendDeptReminder(id, dept, diffDays, "WARNING");
             }
+            // Level 2 Escalation (Day 3 of Delay) - Call L2
             else if (diffDays === 3) {
                 if (L2 && L2.mobile) sendEscalationMsg(L2.mobile, "L2 Officer", id, dept, diffDays, dateStr);
+            }
+            // Level 3 Escalation (Day 5 of Delay) - Call Director
+            else if (diffDays >= 5) {
+                if (L1 && L1.mobile) sendEscalationMsg(L1.mobile, "L1 (DIRECTOR)", id, dept, diffDays, dateStr);
             }
         }
     }
@@ -965,14 +1029,28 @@ function sendDeptReminder(id, dept, extraParam, type) {
         if (m) {
             let msg = "";
             if (type === "DIRECT_MSG") {
-                msg = extraParam; // Raw message passed
+                msg = extraParam;
             }
             else if (type === "REMINDER") {
                 const dateStr = extraParam instanceof Date ? extraParam.toLocaleDateString() : new Date(extraParam).toLocaleDateString();
-                msg = `⚠️ *Delay Alert – Action Required*\n\nTicket ID: ${id}\nDepartment: ${dept}\nRegistered Date: ${dateStr}\n\nThis complaint is still pending.\nPlease resolve it as soon as possible.\n\nSBH Group of Hospitals\n_Automated Notification_`;
+                msg = '⚠️ * Delay Alert – Action Required *\n\n' +
+                    'Ticket ID: ' + id + ' \n' +
+                    'Department: ' + dept + ' \n' +
+                    'Registered Date: ' + dateStr + ' \n\n' +
+                    'This complaint is still pending.\n' +
+                    'Please resolve it as soon as possible.\n\n' +
+                    'SBH Group of Hospitals\n' +
+                    '_Automated Notification_';
             } else if (type === "WARNING") {
                 const days = extraParam;
-                msg = `⚠️ *Urgent Reminder – Pending Complaint*\n\nTicket ID: ${id}\nDepartment: ${dept}\nPending Since: ${days} days\n\nThis case is still unresolved.\nImmediate action is required.\n\nSBH Group of Hospitals\n_Automated Escalation System_`;
+                msg = '⚠️ * Urgent Reminder – Pending Complaint *\n\n' +
+                    'Ticket ID: ' + id + ' \n' +
+                    'Department: ' + dept + ' \n' +
+                    'Pending Since: ' + days + ' days\n\n' +
+                    'This case is still unresolved.\n' +
+                    'Immediate action is required.\n\n' +
+                    'SBH Group of Hospitals\n' +
+                    '_Automated Escalation System_';
             }
 
             if (msg) {
@@ -988,9 +1066,26 @@ function sendEscalationMsg(mobile, level, id, dept, days, dateStr) {
     const regDate = new Date(dateStr).toLocaleDateString();
 
     if (level === "L2 Officer") {
-        msg = `🚨 *Escalation Notice*\n\nTicket ID: ${id}\nDepartment: ${dept}\nPending Since: ${days} days\nRegistered Date: ${regDate}\n\nThis complaint has not been resolved.\nKindly intervene and ensure resolution.\n\nSBH Group of Hospitals\n_Automated Escalation System_`;
+        msg = '🚨 * Escalation Notice *\n\n' +
+            'Ticket ID: ' + id + ' \n' +
+            'Department: ' + dept + ' \n' +
+            'Pending Since: ' + days + ' days\n' +
+            'Registered Date: ' + regDate + ' \n\n' +
+            'This complaint has not been resolved.\n' +
+            'Kindly intervene and ensure resolution.\n\n' +
+            'SBH Group of Hospitals\n' +
+            '_Automated Escalation System_';
     } else if (level === "L1 (DIRECTOR)") {
-        msg = `🚨 *Critical Escalation – Director Attention Required*\n\nRespected Sir,\n\nTicket ID: ${id}\nDepartment: ${dept}\nPending Since: ${days} days\nRegistered Date: ${regDate}\n\nThis complaint remains unresolved despite reminders and escalation.\n\nKindly take necessary action.\n\nSBH Group of Hospitals\n_Automated Monitoring System_`;
+        msg = '🚨 * Critical Escalation – Director Attention Required *\n\n' +
+            'Respected Sir, \n\n' +
+            'Ticket ID: ' + id + ' \n' +
+            'Department: ' + dept + ' \n' +
+            'Pending Since: ' + days + ' days\n' +
+            'Registered Date: ' + regDate + ' \n\n' +
+            'This complaint remains unresolved despite reminders and escalation.\n\n' +
+            'Kindly take necessary action.\n\n' +
+            'SBH Group of Hospitals\n' +
+            '_Automated Monitoring System_';
     }
 
     if (msg) sendWhatsApp(mobile, msg);
@@ -999,7 +1094,13 @@ function sendEscalationMsg(mobile, level, id, dept, days, dateStr) {
 function sendResolutionNotification(id, reportedBy, status, resolvedBy, remark) {
     const mob = getUserMobile(reportedBy);
     if (mob) {
-        const msg = `✅ *TICKET RESOLVED*\n\nYour complaint has been addressed.\n\n🔹 *Ticket ID:* ${id}\n👤 *Resolved By:* ${resolvedBy}\n💬 *Resolution:* ${remark}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '✅ * TICKET RESOLVED *\n\n' +
+            'Your complaint has been addressed.\n\n' +
+            '🔹 * Ticket ID:* ' + id + ' \n' +
+            '👤 * Resolved By:* ' + resolvedBy + ' \n' +
+            '💬 * Resolution:* ' + remark + ' \n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(mob, msg);
     }
 }
@@ -1007,14 +1108,26 @@ function sendResolutionNotification(id, reportedBy, status, resolvedBy, remark) 
 function sendExtensionNotification(id, reportedBy, by, date, reason) {
     const mob = getUserMobile(reportedBy);
     if (mob) {
-        const msg = `⏳ *TIMELINE EXTENDED*\n\nCompletion target for your ticket has been updated.\n\n🔹 *Ticket ID:* ${id}\n👤 *Updated By:* ${by}\n📅 *New Target:* ${date}\n📝 *Reason:* ${reason}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '⏳ * TIMELINE EXTENDED *\n\n' +
+            'Completion target for your ticket has been updated.\n\n' +
+            '🔹 * Ticket ID:* ' + id + ' \n' +
+            '👤 * Updated By:* ' + by + ' \n' +
+            '📅 * New Target:* ' + date + ' \n' +
+            '📝 * Reason:* ' + reason + ' \n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(mob, msg);
     }
 }
 
 function sendAccountApprovalNotification(user, mobile) {
     if (mobile) {
-        const msg = `🔓 *ACCOUNT ACTIVATED*\n\nWelcome back, ${user}!\nYour access to the SBH CMS Portal is now active.\n\n✅ *Status:* AUTHORIZED\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '🔓 * ACCOUNT ACTIVATED *\n\n' +
+            'Welcome back, ' + user + ' !\n' +
+            'Your access to the SBH CMS Portal is now active.\n\n' +
+            '✅ * Status:* AUTHORIZED\n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(mobile, msg);
     }
 }
@@ -1022,7 +1135,14 @@ function sendAccountApprovalNotification(user, mobile) {
 function sendReopenNotification(id, staff, by, remark) {
     const mob = getUserMobile(staff);
     if (mob) {
-        const msg = `⚠️ *TICKET RE-OPENED*\n\nPrevious resolution for ticket #${id} has been flagged for review.\n\n🔹 *Ticket ID:* ${id}\n👤 *Re-opened By:* ${by}\n💬 *Remarks:* ${remark}\n\nImmediate attention required.\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '⚠️ * TICKET RE - OPENED *\n\n' +
+            'Previous resolution for ticket #' + id + ' has been flagged for review.\n\n' +
+            '🔹 * Ticket ID:* ' + id + ' \n' +
+            '👤 * Re - opened By:* ' + by + ' \n' +
+            '💬 * Remarks:* ' + remark + ' \n\n' +
+            'Immediate attention required.\n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(mob, msg);
     }
 }
@@ -1030,7 +1150,12 @@ function sendReopenNotification(id, staff, by, remark) {
 function sendForceCloseNotification(id, reportedBy, reason) {
     const mob = getUserMobile(reportedBy);
     if (mob) {
-        const msg = `🔒 *MANAGEMENT CLOSURE*\n\nYour complaint has been administratively closed.\n\n🔹 *Ticket ID:* ${id}\n📝 *Reason:* ${reason || 'Administrative Action'}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+        const msg = '🔒 * MANAGEMENT CLOSURE *\n\n' +
+            'Your complaint has been administratively closed.\n\n' +
+            '🔹 * Ticket ID:* ' + id + ' \n' +
+            '📝 * Reason:* ' + (reason || 'Administrative Action') + ' \n\n' +
+            'SBH Group Of Hospitals\n' +
+            '_Automated System Notification_';
         sendWhatsApp(mob, msg);
     }
 }
@@ -1057,7 +1182,15 @@ function sendTransferNotification(id, oldDept, newDept, by, reason) {
 
     [...new Set(staffMobiles)].forEach(m => {
         if (m) {
-            const msg = `🔁 *TICKET TRANSFERRED*\n\nA ticket has been routed to your unit.\n\n🔹 *Ticket ID:* ${id}\n📍 *From:* ${oldDept}\n📍 *To:* ${newDept}\n👤 *Transferred By:* ${by}\n📝 *Reason:* ${reason}\n\nSBH Group Of Hospitals\n_Automated System Notification_`;
+            const msg = '🔁 * TICKET TRANSFERRED *\n\n' +
+                'A ticket has been routed to your unit.\n\n' +
+                '🔹 * Ticket ID:* ' + id + ' \n' +
+                '📍 * From:* ' + oldDept + ' \n' +
+                '📍 * To:* ' + newDept + ' \n' +
+                '👤 * Transferred By:* ' + by + ' \n' +
+                '📝 * Reason:* ' + reason + ' \n\n' +
+                'SBH Group Of Hospitals\n' +
+                '_Automated System Notification_';
             sendWhatsApp(m, msg);
             Utilities.sleep(800);
         }
@@ -1137,77 +1270,356 @@ function isAlreadyRated(id, reporter) {
     return false;
 }
 
+// -------------------------------------------------------------------------------------------------
+// PERFORMANCE METRICS ENGINE
+// -------------------------------------------------------------------------------------------------
+
 function updateUserMetrics(username) {
     if (!username) return;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const rSheet = ss.getSheetByName('Complaint_Ratings');
-    if (!rSheet) return;
-    const rData = rSheet.getDataRange().getValues();
+    const targetUser = String(username).toLowerCase().trim();
 
+    // 1. GET RATINGS (Quality Score - 50%)
+    const rSheet = ss.getSheetByName('Complaint_Ratings');
     let totalRating = 0;
     let ratingCount = 0;
-    const targetUser = String(username).toLowerCase();
+    let r1 = 0, r2 = 0, r3 = 0, r4 = 0, r5 = 0;
 
-    for (let i = 1; i < rData.length; i++) {
-        if (String(rData[i][2]).toLowerCase() === targetUser) {
-            let r = parseFloat(rData[i][4]);
-            if (!isNaN(r)) {
-                totalRating += r;
-                ratingCount++;
+    if (rSheet) {
+        const rData = rSheet.getDataRange().getValues();
+        // Headers: Date, Ticket ID, Staff Name, Reporter Name, Rating, Feedback
+        for (let i = 1; i < rData.length; i++) {
+            if (String(rData[i][2]).toLowerCase().trim() === targetUser) {
+                let r = Math.round(parseFloat(rData[i][4]));
+                if (!isNaN(r) && r > 0) {
+                    totalRating += r;
+                    ratingCount++;
+                    if (r === 1) r1++;
+                    else if (r === 2) r2++;
+                    else if (r === 3) r3++;
+                    else if (r === 4) r4++;
+                    else if (r >= 5) r5++;
+                }
             }
         }
     }
+    const avgRating = ratingCount > 0 ? (totalRating / ratingCount) : 0;
+    const ratingScore = (avgRating / 5) * 50;
 
+    // 2. GET SOLVED, SPEED, DELAY (from Master Data)
     const dSheet = ss.getSheetByName('data');
     const dData = dSheet.getDataRange().getValues();
-    let colMap = getColMap(dData[0]);
-    if (!colMap.ID) {
-        for (let r = 0; r < Math.min(dData.length, 5); r++) {
-            const rowStr = dData[r].join(' ').toLowerCase();
-            if (rowStr.includes('date') && (rowStr.includes('desc') || rowStr.includes('status'))) {
-                colMap = getColMap(dData[r]);
-                break;
-            }
-        }
-    }
+    const headers = dData[0];
+    const colMap = getColMap(headers);
 
     let solvedCount = 0;
-    if (colMap.ResolvedBy && colMap.Status) {
-        for (let i = 1; i < dData.length; i++) {
-            const rBy = String(dData[i][colMap.ResolvedBy - 1] || '').toLowerCase();
-            const status = String(dData[i][colMap.Status - 1] || '').toLowerCase();
-            if (rBy === targetUser && (status === 'closed' || status === 'resolved')) {
-                solvedCount++;
+    let totalSpeedHours = 0;
+    let speedCount = 0;
+    let delayCount = 0;
+    let totalCases = 0;
+
+    const rByIdx = colMap.ResolvedBy ? colMap.ResolvedBy - 1 : -1;
+    const aIdx = findCol(headers, 'Assigned To') - 1;
+    const sIdx = colMap.Status - 1;
+    const regDateIdx = (findCol(headers, 'Date') || findCol(headers, 'Timestamp')) - 1;
+    const closedDateIdx = (colMap['Resolved Date'] || findCol(headers, 'Resolved Date')) - 1;
+    const targetDateIdx = colMap.TargetDate ? colMap.TargetDate - 1 : -1;
+
+    const now = new Date();
+
+    for (let i = 1; i < dData.length; i++) {
+        const rBy = String(dData[i][rByIdx] || '').toLowerCase().trim();
+        const assigned = aIdx > -1 ? String(dData[i][aIdx] || '').toLowerCase().trim() : '';
+        const status = String(dData[i][sIdx] || '').toLowerCase();
+
+        // Efficiency is based on cases handled by user or assigned to user
+        let isUserCase = false;
+        if (rBy === targetUser) isUserCase = true;
+        else if (assigned === targetUser) isUserCase = true; // Count open cases assigned to them
+
+        if (!isUserCase) continue;
+
+        totalCases++;
+
+        // Status Checks
+        const isSolved = ['closed', 'resolved', 'solved', 'force close'].includes(status);
+
+        if (isSolved && rBy === targetUser) {
+            solvedCount++;
+            // Speed Calc
+            if (regDateIdx > -1 && closedDateIdx > -1) {
+                const regDate = parseCustomDate(dData[i][regDateIdx]);
+                const closedDate = parseCustomDate(dData[i][closedDateIdx]);
+                if (regDate && closedDate && closedDate > regDate) {
+                    const hours = (closedDate - regDate) / (1000 * 60 * 60);
+                    totalSpeedHours += hours;
+                    speedCount++;
+                }
             }
         }
+
+        // Delay Check
+        let isDelayed = false;
+        if (status === 'delayed') isDelayed = true;
+        else {
+            const regDate = parseCustomDate(dData[i][regDateIdx]);
+            let targetDate = targetDateIdx > -1 ? parseCustomDate(dData[i][targetDateIdx]) : null;
+
+            // Default 24h SLA if no target date
+            if (!targetDate && regDate) {
+                targetDate = new Date(regDate);
+                targetDate.setHours(targetDate.getHours() + 24);
+            }
+
+            if (targetDate) {
+                if (isSolved) {
+                    const closedDate = parseCustomDate(dData[i][closedDateIdx]) || now;
+                    if (closedDate > targetDate) isDelayed = true;
+                } else {
+                    // Open/Pending
+                    if (now > targetDate) isDelayed = true;
+                }
+            }
+        }
+
+        if (isDelayed) delayCount++;
     }
 
-    let pSheet = ss.getSheetByName('User_Performance_Ratings');
-    if (!pSheet) {
-        pSheet = ss.insertSheet('User_Performance_Ratings');
-        pSheet.appendRow(['Staff Name', 'Total Cases Solved', 'Total Ratings Received', 'Average Rating', 'Last Updated']);
+    // 3. CALCULATE SCORES
+    // Speed Score (30%)
+    const avgSpeedHours = speedCount > 0 ? (totalSpeedHours / speedCount) : 0;
+    let speedScore = 0;
+    if (avgSpeedHours > 0) {
+        const ideal = 24;
+        const ratio = ideal / avgSpeedHours;
+        speedScore = Math.min(1, ratio) * 30;
+    } else if (solvedCount > 0) {
+        speedScore = 30; // Instant solve
     }
 
+    // Delay Score (20%)
+    let delayScore = 20;
+    if (totalCases > 0) {
+        const delayPct = delayCount / totalCases;
+        delayScore = Math.max(0, (1 - delayPct) * 20);
+    }
+
+    const efficiencyScore = ratingScore + speedScore + delayScore;
+
+    // 4. UPDATE CACHE SHEET
+    let pSheet = getOrCreateSheet('USER_PERFORMANCE', [
+        'Username', 'Solved Count', 'Rating Count', 'Avg Rating', 'Avg Speed Hours', 'Efficiency Score', 'Last Updated',
+        'Delay Count', 'Total Cases', 'R5', 'R4', 'R3', 'R2', 'R1'
+    ]);
     const pData = pSheet.getDataRange().getValues();
-    const avg = ratingCount > 0 ? (totalRating / ratingCount).toFixed(2) : 0;
-    const now = getISTTimestamp();
+    const ts = getISTTimestamp();
     let found = false;
 
+    // Format display values
+    const dispAvgRating = avgRating.toFixed(2);
+    const dispAvgSpeed = avgSpeedHours.toFixed(2);
+    const dispEff = efficiencyScore.toFixed(0);
+
     for (let i = 1; i < pData.length; i++) {
-        if (String(pData[i][0]).toLowerCase() === targetUser) {
-            pSheet.getRange(i + 1, 2).setValue(solvedCount);
-            pSheet.getRange(i + 1, 3).setValue(ratingCount);
-            pSheet.getRange(i + 1, 4).setValue(avg);
-            pSheet.getRange(i + 1, 5).setValue(now);
+        if (String(pData[i][0]).toLowerCase().trim() === targetUser) {
+            // Update row (1-based index)
+            const row = i + 1;
+            pSheet.getRange(row, 2).setValue(solvedCount);
+            pSheet.getRange(row, 3).setValue(ratingCount);
+            pSheet.getRange(row, 4).setValue(dispAvgRating);
+            pSheet.getRange(row, 5).setValue(dispAvgSpeed);
+            pSheet.getRange(row, 6).setValue(dispEff);
+            pSheet.getRange(row, 7).setValue(ts);
+            pSheet.getRange(row, 8).setValue(delayCount);
+            pSheet.getRange(row, 9).setValue(totalCases);
+            pSheet.getRange(row, 10).setValue(r5);
+            pSheet.getRange(row, 11).setValue(r4);
+            pSheet.getRange(row, 12).setValue(r3);
+            pSheet.getRange(row, 13).setValue(r2);
+            pSheet.getRange(row, 14).setValue(r1);
             found = true;
             break;
         }
     }
 
     if (!found) {
-        pSheet.appendRow([username, solvedCount, ratingCount, avg, now]);
+        pSheet.appendRow([username, solvedCount, ratingCount, dispAvgRating, dispAvgSpeed, dispEff, ts, delayCount, totalCases, r5, r4, r3, r2, r1]);
     }
 }
+
+/**
+ * PAGINATION ENGINE
+ */
+function getComplaintsPaginated(page, limit, deptFilter, statusFilter, search, reporterFilter, resolverFilter, viewer, viewerRole, viewerDept) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('data');
+    if (!sheet) return response('error', 'Data sheet missing');
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    // console.log("Total Data Rows:", data.length); // debug
+
+    // Map columns
+    const colMap = getColMap(headers);
+    const dateIdx = (findCol(headers, 'Date') || findCol(headers, 'Timestamp')) - 1;
+    const idIdx = colMap.ID - 1;
+    const deptIdx = colMap.Department - 1;
+    const statusIdx = colMap.Status - 1;
+    const remarksIdx = colMap.Remark - 1;
+    const reporterIdx = colMap.ReportedBy - 1;
+
+    let filtered = [];
+
+    // Filter Logic
+    const normalizedDeptFilter = normalize(deptFilter);
+    const normalizedReporterFilter = normalize(reporterFilter);
+    const normalizedResolverFilter = normalize(resolverFilter);
+
+    // Viewer Context
+    const vUser = normalize(viewer);
+    const vDept = normalize(viewerDept);
+    const vRole = normalize(viewerRole);
+    const isAdmin = vRole === 'admin' || vRole === 'super_admin';
+
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        let match = true;
+
+        const rowDept = normalize(row[deptIdx]);
+        const rowReporter = normalize(row[reporterIdx]);
+        const rowResolver = normalize(row[colMap.ResolvedBy - 1]);
+
+        // 0. VISIBILITY SECURITY CHECK
+        if (!isAdmin && vUser) {
+            const isMyDept = rowDept === vDept;
+            const isMyReport = rowReporter === vUser;
+            const isMyTask = rowResolver === vUser;
+
+            if (!isMyDept && !isMyReport && !isMyTask) {
+                continue;
+            }
+        }
+
+        // 1. Specific Filters (Reporter/Resolver/Dept)
+        if (deptFilter && deptFilter !== 'All' && deptFilter !== 'All Departments') {
+            if (rowDept !== normalizedDeptFilter) match = false;
+        }
+        if (match && reporterFilter) {
+            if (rowReporter !== normalizedReporterFilter) match = false;
+        }
+        if (match && resolverFilter) {
+            if (rowResolver !== normalizedResolverFilter) match = false;
+        }
+
+        // 2. Status Filter
+        if (match && statusFilter && statusFilter !== 'All Status' && statusFilter !== 'All') {
+            const s = normalize(row[statusIdx]);
+            if (statusFilter === 'Solved') {
+                if (s !== 'solved' && s !== 'closed' && s !== 'resolved' && s !== 'force close') match = false;
+            } else if (statusFilter === 'Open') {
+                if (s === 'closed' || s === 'resolved' || s === 'solved' || s === 'force close') match = false;
+            } else if (statusFilter === 'Delayed') {
+                const targetStr = row[colMap.TargetDate - 1];
+                if (s === 'closed' || s === 'resolved' || s === 'solved' || s === 'force close') match = false;
+                else if (!targetStr || new Date(targetStr) >= new Date()) match = false;
+            } else if (statusFilter === 'Extended') {
+                if (s !== 'extended' && s !== 'extend') match = false;
+            } else {
+                if (s !== normalize(statusFilter)) match = false;
+            }
+        }
+
+        // 3. Search Term
+        if (match && search) {
+            const term = search.toLowerCase();
+            const fullText = row.join(' ').toLowerCase();
+            if (!fullText.includes(term)) match = false;
+        }
+
+        if (match) {
+            const obj = {};
+            headers.forEach((h, idx) => { obj[h] = row[idx]; });
+            filtered.push(obj);
+        }
+    }
+
+    // Sort: Latest First (assuming Date is sortable or ID is increasing)
+    // Better to sort by Date object
+    filtered.sort((a, b) => {
+        // ID Descending as proxy for time
+        return b['Ticket ID'] - a['Ticket ID'];
+    });
+
+    // Pagination
+    const totalItems = filtered.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const items = filtered.slice(startIndex, endIndex);
+
+    return response('success', 'Data Fetched', {
+        items: items,
+        total: totalItems,
+        page: page,
+        totalPages: totalPages
+    });
+}
+
+function getUserPerformance(username) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Recalculate metrics to ensure freshness
+    updateUserMetrics(username);
+
+    const sheet = ss.getSheetByName('USER_PERFORMANCE');
+
+    if (!sheet) return response('success', 'User not found', {});
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const target = String(username).toLowerCase().trim();
+
+    // Find User
+    let stats = null;
+    let allEfScores = [];
+
+    for (let i = 1; i < data.length; i++) {
+        const u = String(data[i][0]).toLowerCase().trim();
+        const score = parseFloat(data[i][5]) || 0; // Efficiency Score column
+        allEfScores.push(score);
+
+        if (u === target) {
+            stats = {
+                Username: data[i][0],
+                SolvedCount: data[i][1],
+                RatingCount: data[i][2],
+                AvgRating: data[i][3],
+                AvgSpeedHours: data[i][4],
+                EfficiencyScore: score,
+                DelayCount: data[i][7],
+                TotalCases: data[i][8],
+                R5: data[i][9],
+                R4: data[i][10],
+                R3: data[i][11],
+                R2: data[i][12],
+                R1: data[i][13]
+            };
+        }
+    }
+
+    if (!stats) return response('success', 'User not found in metrics', {});
+
+    // Calculate Rank
+    allEfScores.sort((a, b) => b - a); // Descending
+    const rank = allEfScores.indexOf(stats.EfficiencyScore) + 1;
+
+    return response('success', 'Performance Data', {
+        ...stats,
+        rank: rank,
+        totalStaff: allEfScores.length
+    });
+}
+
 
 function getEscalationContact(level) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1258,4 +1670,77 @@ function updateTicketStatusEverywhere(ticketId, newStatus) {
             }
         }
     });
+}
+
+/**
+ * LIGHTWEIGHT DASHBOARD STATS
+ */
+function getDashboardStats(username, userDept, role) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('data');
+    if (!sheet) return response('error', 'Data sheet missing');
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colMap = getColMap(headers);
+    const isAdmin = (role || '').toUpperCase() === 'ADMIN' || (role || '').toUpperCase() === 'SUPER_ADMIN';
+    const normalizedDept = normalize(userDept);
+    const normalizedUser = normalize(username);
+
+    let stats = {
+        open: 0,
+        pending: 0,
+        solved: 0,
+        transferred: 0,
+        extended: 0,
+        delayed: 0
+    };
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const dept = normalize(row[colMap.Department - 1]);
+        const reporter = normalize(row[colMap.ReportedBy - 1]);
+
+        // Visibility Check: Admin sees ALL, User sees OWN DEPT or REPORTED BY SELF
+        if (!isAdmin) {
+            if (dept !== normalizedDept && reporter !== normalizedUser) continue;
+        }
+
+        const s = normalize(row[colMap.Status - 1]);
+
+        if (s === 'open') stats.open++;
+        else if (s === 'pending' || s === 'in-progress' || s === 're-open') stats.pending++;
+        else if (s === 'solved' || s === 'resolved' || s === 'closed' || s === 'force close') stats.solved++;
+        else if (s === 'transferred') stats.transferred++;
+        else if (s === 'delayed') stats.delayed++;
+
+        // Extended is a sub-status often, but if mapped to status column:
+        if (s === 'extended' || s === 'extend') stats.extended++;
+    }
+
+    return response('success', 'Stats Fetched', stats);
+}
+
+/**
+ * FETCH SINGLE TICKET BY ID
+ */
+function getComplaintById(id) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('data');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colMap = getColMap(headers);
+    const searchId = String(id).toLowerCase().trim();
+
+    for (let i = 1; i < data.length; i++) {
+        if (String(data[i][colMap.ID - 1]).toLowerCase().trim() === searchId) {
+            const obj = {};
+            headers.forEach((h, idx) => obj[h] = data[i][idx]);
+            return response('success', 'Ticket Found', obj);
+        }
+    }
+    return response('error', 'Ticket not found');
 }

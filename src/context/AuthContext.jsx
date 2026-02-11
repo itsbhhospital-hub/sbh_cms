@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
             // Map user data robustly before saving to session
             const userSession = {
                 Username: foundUser.Username,
-                Role: String(foundUser.Username).toLowerCase().trim() === 'am sir' ? 'SUPER_ADMIN' : foundUser.Role,
+                Role: (String(foundUser.Username).toLowerCase().trim() === 'am sir') ? 'SUPER_ADMIN' : foundUser.Role,
                 Department: foundUser.Department,
                 Status: foundUser.Status,
                 Mobile: foundUser.Mobile,

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { User, LogOut, Key, Shield, Building2, Phone, X, Check, Eye, EyeOff, Menu, Bell, Edit2, CheckCircle, ArrowRight, Clock, AlertTriangle, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLayout } from '../context/LayoutContext';
@@ -29,26 +29,19 @@ const parseBackendDate = (str) => {
     return new Date(clean);
 };
 
-const Navbar = () => {
-    const { user, logout, updateUserSession } = useAuth();
-    const { setMobileOpen } = useLayout();
+// Extracted Notification Bell Component to isolate re-renders
+const NotificationBell = memo(() => {
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    // UI States
-    const [isOpen, setIsOpen] = useState(false);
-
-    // Profile Panel State (Replaces inline profile)
-    const [showProfilePanel, setShowProfilePanel] = useState(false);
-
-    // Notification States
     const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showAllNotifications, setShowAllNotifications] = useState(false);
     const [isPolling, setIsPolling] = useState(false);
 
-    const dropdownRef = useRef(null);
     const notifRef = useRef(null);
+    useClickOutside(notifRef, () => setShowNotifications(false));
 
     // Notifications Polling
     useEffect(() => {
@@ -89,7 +82,7 @@ const Navbar = () => {
                         });
                     }
                     // Solved Complaint
-                    if (['solved', 'closed'].includes(String(t.Status).toLowerCase())) {
+                    if (['solved', 'closed', 'resolved', 'force close'].includes(String(t.Status).toLowerCase())) {
                         allEvents.push({
                             id: t.ID,
                             type: 'solved',
@@ -160,7 +153,6 @@ const Navbar = () => {
                 }
 
                 // Sort by Time Descending (Latest First)
-                // Sort by Time Descending (Latest First)
                 filteredEvents.sort((a, b) => parseBackendDate(b.time) - parseBackendDate(a.time));
 
                 setNotifications(filteredEvents);
@@ -173,49 +165,15 @@ const Navbar = () => {
         };
 
         fetchNotifs();
-        fetchNotifs();
         const interval = setInterval(() => {
             if (!document.hidden) {
                 setIsPolling(true);
                 fetchNotifs().catch(err => console.warn("Polling skipped:", err.message));
             }
-        }, 10000); // Updated to 10s for "Live" feel without hitting quotas
+        }, 15000); // Polling every 15s to be cache-friendly
 
         return () => clearInterval(interval);
     }, [user]);
-
-    // Click Outside Handling
-    useClickOutside(dropdownRef, () => setIsOpen(false));
-    useClickOutside(notifRef, () => setShowNotifications(false));
-
-    // Profile Update Handler
-    const handleUpdateProfile = async (updates) => {
-        try {
-            // 1. Update Sheet
-            await sheetsService.updateUser({
-                ...updates,
-                OldUsername: user.Username // Critical
-            });
-            // 2. Update Session
-            updateUserSession(updates);
-
-            // 3. Optional: Close panel
-            setShowProfilePanel(false);
-        } catch (error) {
-            console.error("Profile update failed", error);
-            const msg = error.message || '';
-
-            // Special handling for System Master (AM Sir)
-            if (msg.includes('CRITICAL SECURE') && user.Username === 'AM Sir') {
-                alert("Note: Profile updated locally. Server sync is restricted for the System Master account.");
-                updateUserSession(updates); // Force local update
-                setShowProfilePanel(false);
-                return; // Treat as success
-            }
-
-            throw error; // Let panel handle other errors
-        }
-    };
 
     const renderNotificationItem = (n, i, full = false) => {
         const notifDate = parseBackendDate(n.time);
@@ -223,12 +181,7 @@ const Navbar = () => {
         const isToday = notifDate.toDateString() === today.toDateString();
         const displayTime = isToday
             ? notifDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-            : n.time.replace(/'/g, ''); // Use raw string if not today (already formatted)
-
-        // "Ticket SBH0004 transferred by Naman Mishra at 04:12 PM"
-        // Title is already "Complaint Transferred", "New Complaint", etc.
-        // We need to match the specific format requested: "Ticket [ID] [Action] by [User] at [Time]"
-        // But n.title is generic. We can keep n.title as header, but ensure detailed text matches.
+            : n.time.replace(/'/g, '');
 
         return (
             <div
@@ -270,6 +223,167 @@ const Navbar = () => {
         );
     };
 
+    return (
+        <>
+            <div className="relative z-50" ref={notifRef}>
+                <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#4338ca] hover:bg-indigo-50 shadow-sm transition-all relative"
+                >
+                    <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
+                    {isPolling && (
+                        <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
+                    )}
+                    {notifications.length > 0 && (
+                        <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
+                    )}
+                </button>
+
+                <AnimatePresence>
+                    {showNotifications && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="fixed w-[90vw] right-4 top-16 md:absolute md:w-80 md:right-0 md:top-full md:mt-3 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 overflow-hidden z-[200]"
+                        >
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <h4 className="font-black text-slate-800 text-sm">Notifications</h4>
+                                <span className="text-xs font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-500">{notifications.length}</span>
+                            </div>
+
+                            <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                {notifications.length === 0 ? (
+                                    <div className="text-center py-8 opacity-50">
+                                        <Bell size={32} className="mx-auto mb-2 text-slate-300" />
+                                        <p className="text-xs font-bold text-slate-400">No new notifications</p>
+                                    </div>
+                                ) : (
+                                    notifications.slice(0, 5).map((n, i) => renderNotificationItem(n, i))
+                                )}
+                            </div>
+
+                            {notifications.length > 5 && (
+                                <div className="p-2 border-t border-slate-100 bg-slate-50">
+                                    <button
+                                        onClick={() => { setShowNotifications(false); setShowAllNotifications(true); }}
+                                        className="w-full py-2 text-xs font-black text-slate-500 hover:text-orange-600 hover:bg-white rounded-lg transition-colors flex items-center justify-center gap-1"
+                                    >
+                                        See More <ArrowRight size={12} />
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Full Notifications Modal */}
+            <AnimatePresence>
+                {showAllNotifications && (
+                    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white rounded-3xl w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+                        >
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800">Notifications</h2>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Full History ({notifications.length})</p>
+                                </div>
+                                <button onClick={() => setShowAllNotifications(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                    <X size={24} className="text-slate-500" />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/30">
+                                {notifications.map((n, i) => (
+                                    <div key={i} className="flex gap-4 mb-6 relative group">
+                                        {/* Timeline Line */}
+                                        {i !== notifications.length - 1 && (
+                                            <div className="absolute left-[19px] top-10 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-slate-300 transition-colors"></div>
+                                        )}
+
+                                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-sm border ${n.iconBg} z-10`}>
+                                            <n.icon size={20} />
+                                        </div>
+
+                                        <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                                            onClick={() => {
+                                                setShowAllNotifications(false);
+                                                navigate(`/my-complaints${n.viewParams}`);
+                                            }}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-bold text-slate-800">{n.title}</h4>
+                                                <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-full">{formatIST(n.time)}</span>
+                                            </div>
+                                            <p className="text-xs text-slate-500 font-medium mb-3">
+                                                Ticket <span className="font-mono text-slate-700 font-bold">#{n.id}</span> • {n.dept}
+                                            </p>
+                                            {n.msg && (
+                                                <div className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 text-slate-600 italic">
+                                                    "{n.msg}"
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </>
+    );
+});
+
+
+const Navbar = () => {
+    const { user, logout, updateUserSession } = useAuth();
+    const { setMobileOpen } = useLayout();
+    const navigate = useNavigate();
+
+    // UI States
+    const [isOpen, setIsOpen] = useState(false);
+
+    // Profile Panel State (Replaces inline profile)
+    const [showProfilePanel, setShowProfilePanel] = useState(false);
+
+    const dropdownRef = useRef(null);
+
+    // Click Outside Handling
+    useClickOutside(dropdownRef, () => setIsOpen(false));
+
+    // Profile Update Handler
+    const handleUpdateProfile = async (updates) => {
+        try {
+            // 1. Update Sheet
+            await sheetsService.updateUser({
+                ...updates,
+                OldUsername: user.Username // Critical
+            });
+            // 2. Update Session
+            updateUserSession(updates);
+
+            // 3. Optional: Close panel
+            setShowProfilePanel(false);
+        } catch (error) {
+            console.error("Profile update failed", error);
+            const msg = error.message || '';
+
+            // Special handling for System Master (AM Sir)
+            if (msg.includes('CRITICAL SECURE') && user.Username === 'AM Sir') {
+                alert("Note: Profile updated locally. Server sync is restricted for the System Master account.");
+                updateUserSession(updates); // Force local update
+                setShowProfilePanel(false);
+                return; // Treat as success
+            }
+
+            throw error; // Let panel handle other errors
+        }
+    };
+
     if (!user) return null;
 
     return (
@@ -281,10 +395,10 @@ const Navbar = () => {
                         {/* LEFT SIDE: Logos & Menu */}
                         <div className="flex items-center gap-3">
                             <div className="hidden md:flex items-center">
-                                <img src="/sbh_wide.jpg" alt="SBH Logo" className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity" />
+                                <img src="/sbh_wide.jpg" alt="SBH Logo" className="h-10 w-auto object-contain opacity-100 transition-opacity" />
                             </div>
                             <div className="md:hidden flex items-center gap-2">
-                                <img src="/sbh_wide.jpg" alt="Logo" className="h-6 w-auto object-contain mr-1" />
+                                <img src="/sbh_wide.jpg" alt="Logo" className="h-8 w-auto object-contain mr-1" />
                             </div>
                             <div className="md:hidden">
                                 <button
@@ -299,59 +413,8 @@ const Navbar = () => {
                         {/* RIGHT SIDE: Icons */}
                         <div className="flex items-center gap-3 md:gap-4">
 
-                            {/* Notification Bell */}
-                            <div className="relative z-50" ref={notifRef}>
-                                <button
-                                    onClick={() => setShowNotifications(!showNotifications)}
-                                    className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#4338ca] hover:bg-indigo-50 shadow-sm transition-all relative"
-                                >
-                                    <Bell size={20} className={isPolling ? "animate-wiggle" : ""} />
-                                    {isPolling && (
-                                        <span className="absolute top-2.5 right-3 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
-                                    )}
-                                    {notifications.length > 0 && (
-                                        <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-                                    )}
-                                </button>
-
-                                <AnimatePresence>
-                                    {showNotifications && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                            className="fixed w-[90vw] right-4 top-16 md:absolute md:w-80 md:right-0 md:top-full md:mt-3 bg-white rounded-2xl shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-slate-200 overflow-hidden z-[200]"
-                                        >
-                                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                                <h4 className="font-black text-slate-800 text-sm">Notifications</h4>
-                                                <span className="text-xs font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-500">{notifications.length}</span>
-                                            </div>
-
-                                            <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {notifications.length === 0 ? (
-                                                    <div className="text-center py-8 opacity-50">
-                                                        <Bell size={32} className="mx-auto mb-2 text-slate-300" />
-                                                        <p className="text-xs font-bold text-slate-400">No new notifications</p>
-                                                    </div>
-                                                ) : (
-                                                    notifications.slice(0, 5).map((n, i) => renderNotificationItem(n, i))
-                                                )}
-                                            </div>
-
-                                            {notifications.length > 5 && (
-                                                <div className="p-2 border-t border-slate-100 bg-slate-50">
-                                                    <button
-                                                        onClick={() => { setShowNotifications(false); setShowAllNotifications(true); }}
-                                                        className="w-full py-2 text-xs font-black text-slate-500 hover:text-orange-600 hover:bg-white rounded-lg transition-colors flex items-center justify-center gap-1"
-                                                    >
-                                                        See More <ArrowRight size={12} />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
+                            {/* Notification Bell (Extracted) */}
+                            <NotificationBell />
 
                             <div className="relative" ref={dropdownRef}>
                                 {/* User Profile Button */}
@@ -439,65 +502,8 @@ const Navbar = () => {
                     </>
                 )}
             </AnimatePresence>
-
-            {/* Full Notifications Modal */}
-            <AnimatePresence>
-                {showAllNotifications && (
-                    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-white rounded-3xl w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl overflow-hidden"
-                        >
-                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-800">Notifications</h2>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Full History ({notifications.length})</p>
-                                </div>
-                                <button onClick={() => setShowAllNotifications(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                                    <X size={24} className="text-slate-500" />
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/30">
-                                {notifications.map((n, i) => (
-                                    <div key={i} className="flex gap-4 mb-6 relative group">
-                                        {/* Timeline Line */}
-                                        {i !== notifications.length - 1 && (
-                                            <div className="absolute left-[19px] top-10 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-slate-300 transition-colors"></div>
-                                        )}
-
-                                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-sm border ${n.iconBg} z-10`}>
-                                            <n.icon size={20} />
-                                        </div>
-
-                                        <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer"
-                                            onClick={() => {
-                                                setShowAllNotifications(false);
-                                                navigate(`/my-complaints${n.viewParams}`);
-                                            }}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-bold text-slate-800">{n.title}</h4>
-                                                <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-full">{formatIST(n.time)}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-500 font-medium mb-3">
-                                                Ticket <span className="font-mono text-slate-700 font-bold">#{n.id}</span> • {n.dept}
-                                            </p>
-                                            {n.msg && (
-                                                <div className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 text-slate-600 italic">
-                                                    "{n.msg}"
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </>
     );
 };
 
-export default Navbar;
+export default memo(Navbar);

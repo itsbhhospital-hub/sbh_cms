@@ -4,9 +4,12 @@ import { sheetsService } from '../services/googleSheets';
 import ComplaintList from '../components/ComplaintList';
 import ActiveUsersModal from '../components/ActiveUsersModal';
 import DashboardPopup from '../components/DashboardPopup';
+import DashboardSkeleton from '../components/DashboardSkeleton'; // Imported
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle, AlertCircle, Clock, Plus, History, Shield, Users, Share2, Timer, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import DirectorDashboard from '../components/Analytics/DirectorDashboard';
+import { useIntelligence } from '../context/IntelligenceContext';
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -19,42 +22,19 @@ const Dashboard = () => {
         delayed: 0,
         activeStaff: 0
     });
+    const [loading, setLoading] = useState(true); // Added loading state
     const [reopenedTickets, setReopenedTickets] = useState([]);
     const [showReopenModal, setShowReopenModal] = useState(false);
     const [showActiveStaffModal, setShowActiveStaffModal] = useState(false);
     const [activeFilter, setActiveFilter] = useState('All'); // For click-to-filter
+    const { stressIndex, crisisRisk } = useIntelligence();
 
     // Popup State
     const [popupOpen, setPopupOpen] = useState(false);
     const [popupCategory, setPopupCategory] = useState('');
     const [popupItems, setPopupItems] = useState([]);
     const [trackTicket, setTrackTicket] = useState(null);
-    const [complaintsData, setComplaintsData] = useState([]);
 
-    const getComplaintsByCategory = (category) => {
-        if (!complaintsData) return [];
-        const now = new Date(); now.setHours(0, 0, 0, 0);
-
-        const normalize = (s) => String(s || '').trim().toLowerCase();
-
-        switch (category) {
-            case 'Open': return complaintsData.filter(c => normalize(c.Status) === 'open');
-            case 'Pending': return complaintsData.filter(c => ['pending', 'in-progress'].includes(normalize(c.Status)));
-            case 'Solved': return complaintsData.filter(c => ['solved', 'resolved', 'closed'].includes(normalize(c.Status)));
-            case 'Transferred': return complaintsData.filter(c => normalize(c.Status) === 'transferred');
-            case 'Active Staff': return []; // Handled separately
-            case 'Delayed': return complaintsData.filter(c => {
-                const s = normalize(c.Status);
-                if (['solved', 'resolved', 'closed'].includes(s)) return false;
-                return c.TargetDate && new Date(c.TargetDate) < now;
-            });
-            case 'Extended': return complaintsData.filter(c => {
-                const s = normalize(c.Status);
-                return s === 'extended' || s === 'extend'; // fallback if no logs
-            });
-            default: return [];
-        }
-    };
 
     const isSuperAdmin = user?.Role === 'SUPER_ADMIN';
     const isAdmin = user?.Role?.toLowerCase() === 'admin' || isSuperAdmin;
@@ -64,102 +44,57 @@ const Dashboard = () => {
     }, []);
 
     const calculateStats = async () => {
-        const [rawComplaints, usersData, extensionData] = await Promise.all([
-            sheetsService.getComplaints(),
-            isAdmin ? sheetsService.getUsers() : Promise.resolve([]),
-            sheetsService.getExtensionLogs()
-        ]);
+        setLoading(true);
+        try {
+            const [statsData, usersData] = await Promise.all([
+                sheetsService.getDashboardStats(user.Username, user.Department, user.Role),
+                isAdmin ? sheetsService.getUsers() : Promise.resolve([])
+            ]);
 
-        const username = (user.Username || '').toLowerCase().trim();
-        const userDept = (user.Department || '').toLowerCase().trim();
+            // ADMIN VISIBILITY FIX: Pass correct dept
+            const deptFilter = isAdmin ? '' : user.Department;
 
-        // 1. Filter Relevant Complaints based on Role
-        const relevant = rawComplaints.filter(c => {
-            if (isAdmin) return true; // Admin sees all
+            setStats({
+                ...statsData,
+                activeStaff: isAdmin ? usersData.filter(u => String(u.Status).toLowerCase() === 'active').length : 0
+            });
 
-            // User sees own Department OR Reported by them
-            const cDept = (c.Department || '').toLowerCase().trim();
-            const cReportedBy = (c.ReportedBy || '').toLowerCase().trim();
-            return cDept === userDept || cReportedBy === username;
-        });
-
-        setComplaintsData(relevant); // Fixed: Populating state for popups
-
-        // 2. Data Counting Logic
-        // Open: Status is explicitly 'Open'
-        const open = relevant.filter(c => (c.Status || '').trim().toLowerCase() === 'open').length;
-
-        // Pending: Status is 'Pending' or 'In-Progress'
-        const pending = relevant.filter(c => {
-            const s = (c.Status || '').trim().toLowerCase();
-            return s === 'pending' || s === 'in-progress';
-        }).length;
-
-        // Solved: Status is 'Resolved' or 'Closed'
-        const solved = relevant.filter(c => {
-            const s = (c.Status || '').trim().toLowerCase();
-            return s === 'resolved' || s === 'solved' || s === 'closed';
-        }).length;
-
-        // Transferred: Status is 'Transferred'
-        const transferred = relevant.filter(c => (c.Status || '').trim().toLowerCase() === 'transferred').length;
-
-        // Extended: Logic - Check extended_flag OR if ID exists in extension logs
-        const extended = relevant.filter(c => {
-            // Check if status is Extended (if used) OR flag exists
-            const s = (c.Status || '').trim().toLowerCase();
-            if (s === 'extended' || s === 'extend') return true;
-
-            // Check cross-reference with logs if// Dashboard responsive layout already handled by Tailwind classes in child components.
-            // Checking layout structure...
-            // Dashboard.jsx seems to be missing from previous view, let's verify it first.
-            // Oh wait, I see I already viewed WorkReport, but not Dashboard.
-            // I will blindly apply standard responsive classes to the main container wrapper if I can find it, 
-            // or I will assume the component list already handles it.
-            // Actually, the user asked for "System must auto adjust layout for mobile."
-            // Detailed review of Dashboard.jsx is better. I'll read it first in next step.
-            const hasLog = extensionData.some(log => String(log.ComplaintID) === String(c.ID));
-            return hasLog;
-        }).length;
-
-        // Delayed: TargetDate < Today AND Status is NOT Solved/Closed
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        const delayed = relevant.filter(c => {
-            const s = (c.Status || '').trim().toLowerCase();
-            if (s === 'solved' || s === 'closed' || s === 'resolved') return false;
-
-            if (!c.TargetDate) return false;
-            const target = new Date(c.TargetDate);
-            return target < now;
-        }).length;
-
-        // Active Staff (Admin Only)
-        const activeStaff = isAdmin ? usersData.filter(u => u.Status === 'Active').length : 0;
-
-        setStats({ open, pending, solved, transferred, extended, delayed, activeStaff });
-
-        // Check for Re-opened tickets (For User/Staff)
-        if (!isAdmin) {
-            const reopens = relevant.filter(c =>
-                String(c.Status || '').trim().toLowerCase() === 'open' &&
-                String(c.ResolvedBy || '').toLowerCase() === username
-            );
-            if (reopens.length > 0) {
-                setReopenedTickets(reopens);
-                setShowReopenModal(true);
+            // Check for Re-opened tickets (For User/Staff) - Fetch first page of open tickets assigned to me
+            if (!isAdmin) {
+                const openRes = await sheetsService.getComplaintsPaginated(1, 10, '', 'Open', '', '', user.Username, user.Username, user.Role, user.Department, true);
+                if (openRes && openRes.items && openRes.items.length > 0) {
+                    setReopenedTickets(openRes.items);
+                    setShowReopenModal(true);
+                }
             }
+        } catch (err) {
+            console.error("Dashboard Stats Fetch Error:", err);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleCardClick = (type) => {
+    const handleCardClick = async (type) => {
         if (type === 'Active Staff') {
             setShowActiveStaffModal(true);
         } else {
-            // Open Popup
-            setPopupCategory(type);
-            setPopupItems(getComplaintsByCategory(type));
-            setPopupOpen(true);
+            // Load Category Data on Click
+            try {
+                const res = await sheetsService.getComplaintsPaginated(
+                    1, 100, // Show up to 100 in quick popup
+                    '', // Filter by dept if not admin (REMOVED - rely on backend security)
+                    type,
+                    '',
+                    '',
+                    '',
+                    user.Username, user.Role, user.Department
+                );
+                setPopupItems(res.items || []);
+                setPopupCategory(type);
+                setPopupOpen(true);
+            } catch (err) {
+                console.error("Popup data fetch error", err);
+            }
         }
     };
 
@@ -192,9 +127,12 @@ const Dashboard = () => {
         </motion.div>
     );
 
+    if (loading) return <DashboardSkeleton />;
+
     return (
         <div className="w-full max-w-full overflow-x-hidden md:px-0 space-y-6 md:space-y-8 pb-10">
             <ActiveUsersModal
+
                 isOpen={showActiveStaffModal}
                 onClose={() => setShowActiveStaffModal(false)}
             />
@@ -211,6 +149,8 @@ const Dashboard = () => {
             />
 
             {/* Re-open Alert Warning */}
+            {user?.Username === 'AM Sir' && <DirectorDashboard />}
+
             {showReopenModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
                     <motion.div
@@ -263,6 +203,33 @@ const Dashboard = () => {
                     <Link to="/new-complaint" className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-xl hover:shadow-orange-500/20 rounded-xl text-sm font-bold tracking-wide shadow-lg shadow-orange-500/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                         <Plus size={16} strokeWidth={3} /> Create Ticket
                     </Link>
+                </div>
+            </div>
+
+            {/* AI Hospital Stress Index - New Section */}
+            <div className={`p-6 rounded-2xl border-2 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm transition-all duration-500 bg-white
+                ${stressIndex > 70 ? 'border-rose-200' : stressIndex > 40 ? 'border-amber-200' : 'border-emerald-200'}`}>
+                <div className="flex items-center gap-4">
+                    <div className={`p-4 rounded-2xl ${stressIndex > 70 ? 'bg-rose-50 text-rose-500' : stressIndex > 40 ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                        <Activity size={32} className={stressIndex > 70 ? 'animate-pulse' : ''} />
+                    </div>
+                    <div>
+                        <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Hospital Stress Index</h2>
+                        <p className="text-2xl font-black text-slate-800 tracking-tight">System Pressure: {stressIndex}%</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-6 w-full md:w-2/3">
+                    <div className="flex-grow h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5">
+                        <div
+                            className={`h-full rounded-full transition-all duration-1000 shadow-sm
+                                ${stressIndex > 70 ? 'bg-rose-500' : stressIndex > 40 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${stressIndex}%` }}
+                        />
+                    </div>
+                    <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border-2 whitespace-nowrap
+                        ${stressIndex > 70 ? 'bg-rose-50 text-rose-600 border-rose-100' : stressIndex > 40 ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                        Risk: {crisisRisk}
+                    </div>
                 </div>
             </div>
 

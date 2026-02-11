@@ -77,8 +77,26 @@ export const formatTimeIST = (dateInput) => {
 };
 
 /**
- * Returns current time in strict ISO format with offset (mocking backend for optimistic updates)
+ * Parses "dd-MM-yyyy hh:mm:ss a" or standard ISO strings
  */
+export const parseCustomDate = (dateStr) => {
+    if (!dateStr) return null;
+    const clean = String(dateStr).replace(/'/g, '').trim();
+
+    // Check for DD-MM-YYYY
+    const dmyRegex = /^(\d{1,2})-(\d{1,2})-(\d{4})(.*)/;
+    const match = clean.match(dmyRegex);
+
+    if (match) {
+        const [_, d, m, y, rest] = match;
+        // Reformat to YYYY-MM-DD for standard parsing
+        return new Date(`${y}-${m}-${d}${rest}`);
+    }
+
+    const d = new Date(clean);
+    return isNaN(d.getTime()) ? null : d;
+};
+
 export const getCurrentISO = () => {
     return new Date().toISOString();
 };

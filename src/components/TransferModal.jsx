@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronRight, Share2, X } from 'lucide-react';
+import { ChevronRight, Share2, X, Zap } from 'lucide-react';
+import { useIntelligence } from '../context/IntelligenceContext';
 
 const DEPARTMENTS = [
     'IT', 'TPA', 'TPA ACCOUNTANT', 'HR', 'OPERATION', 'PHARMACY',
@@ -7,9 +7,11 @@ const DEPARTMENTS = [
     'BILLING', 'FRONT OFFICE', 'STORE', 'LAB', 'NURSING', 'SECURITY', 'CCTV', 'OT', 'ICU', 'NICU', 'PICU', 'RADIOLOGY'
 ];
 
-const TransferModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
+const TransferModal = ({ isOpen, onClose, onConfirm, isSubmitting, ticket }) => {
     const [dept, setDept] = useState('');
     const [reason, setReason] = useState('');
+    const { getTransferSuggestion } = useIntelligence();
+    const suggestedDept = getTransferSuggestion(ticket);
 
     if (!isOpen) return null;
 
@@ -30,7 +32,17 @@ const TransferModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 
             <div className="mb-4 space-y-4">
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Transfer To Department</label>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase">Transfer To Department</label>
+                        {suggestedDept && (
+                            <button
+                                onClick={() => setDept(suggestedDept)}
+                                className="flex items-center gap-1 text-[10px] font-black text-rose-500 hover:text-rose-600 transition-colors uppercase animate-pulse"
+                            >
+                                <Zap size={10} fill="currentColor" /> AI Suggest: {suggestedDept}
+                            </button>
+                        )}
+                    </div>
                     <div className="relative">
                         <select
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-orange-50 focus:border-orange-500 appearance-none"

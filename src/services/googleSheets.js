@@ -15,7 +15,7 @@ const MOCK_USERS = [
 
 // --- LOCAL STORAGE CACHE HELPERS ---
 const CACHE_PREFIX = 'sbh_cache_';
-const CACHE_DURATION = 10 * 1000; // 10 Seconds (Optimized for Live Feel)
+const CACHE_DURATION = 15 * 1000; // 15 Seconds (Optimized for Live Feel)
 
 const getCachedData = (key) => {
     try {
@@ -100,7 +100,8 @@ const normalizeRows = (rows) => {
         normalized.Time = findValue(['Time', 'Registered Time', 'Created Time']);
         normalized.Department = findValue(['Department', 'Dept']);
         normalized.Description = findValue(['Description', 'Desc', 'Complaint']);
-        normalized.Status = findValue(['Status']);
+        const rawStatus = findValue(['Status']);
+        normalized.Status = rawStatus ? (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) : ''; // Normalize: Open, Solved, etc.
         normalized.ReportedBy = findValue(['ReportedBy', 'User', 'Reporter', 'ReporterName', 'Reporter Name']);
         // Complaint_Ratings specific
         normalized.ResolvedBy = findValue(['ResolvedBy', 'AssignedTo', 'Staff', 'StaffName', 'Staff Name', 'Staff Name (Resolver)']);
@@ -138,13 +139,20 @@ const normalizeRows = (rows) => {
         // Default fallbacks for crucial fields if missing
         if (!normalized.ID && normalized.Username) normalized.ID = normalized.Username; // Treat Username as ID for users
 
+        // OPTIMIZATION: Resize Google Drive Images
+        if (normalized.ProfilePhoto && normalized.ProfilePhoto.includes('googleusercontent') === false) {
+            if (normalized.ProfilePhoto.includes('sz=w1000')) {
+                normalized.ProfilePhoto = normalized.ProfilePhoto.replace('sz=w1000', 'sz=w400');
+            }
+        }
+
         return normalized;
     });
 };
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const fetchSheetData = async (sheetName, forceRefresh = false, options = {}) => {
+const fetchSheetData = async (sheetName, forceRefresh = false, options = { silent: true }) => {
     // 1. Check Cache
     const cached = getCachedData(sheetName);
 
@@ -167,7 +175,8 @@ const fetchSheetData = async (sheetName, forceRefresh = false, options = {}) => 
     let retries = 3;
     let delay = 1000;
 
-    if (!options.silent) window.dispatchEvent(new Event('sbh-loading-start'));
+    const isSilent = options.silent !== false; // Default to silent
+    if (!isSilent) window.dispatchEvent(new Event('sbh-loading-start'));
 
     while (retries > 0) {
         try {
@@ -184,14 +193,14 @@ const fetchSheetData = async (sheetName, forceRefresh = false, options = {}) => 
             // 3. Update Cache
             setCachedData(sheetName, normalized);
 
-            if (!options.silent) window.dispatchEvent(new Event('sbh-loading-end'));
+            if (!isSilent) window.dispatchEvent(new Event('sbh-loading-end'));
             return normalized;
 
         } catch (error) {
             console.warn(`Attempt failed for ${sheetName}. Retries left: ${retries - 1}. Error: ${error.message}`);
             retries--;
             if (retries === 0) {
-                if (!options.silent) window.dispatchEvent(new Event('sbh-loading-end'));
+                if (!isSilent) window.dispatchEvent(new Event('sbh-loading-end'));
 
                 // Fallback logic
                 if (error.message.includes('Sheet not found')) return [];
@@ -219,7 +228,7 @@ const fetchSheetData = async (sheetName, forceRefresh = false, options = {}) => 
     }
 };
 
-const sendToSheet = async (action, payload, silent = false) => {
+const sendToSheet = async (action, payload, silent = true) => {
     try {
         if (!silent) window.dispatchEvent(new Event('sbh-loading-start'));
         const response = await fetch(API_URL, {
@@ -249,11 +258,88 @@ const sendToSheet = async (action, payload, silent = false) => {
     }
 };
 
+const fetchPaginatedData = async (action, params, force = false, silent = true) => {
+    // Create a unique cache key based on action and params
+    const cacheKey = `${action}_${JSON.stringify(params)}`;
+
+    // 1. Check Cache
+    const cached = getCachedData(cacheKey);
+
+    if (!force && cached) {
+        // Background Refresh (SWR)
+        const query = new URLSearchParams(params).toString();
+        fetch(`${API_URL}?action=${action}&${query}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.status !== 'error') {
+                    if (data.data && Array.isArray(data.data.items)) {
+                        data.data.items = normalizeRows(data.data.items);
+                    }
+                    setCachedData(cacheKey, data.data);
+                }
+            })
+            .catch(err => console.warn("Background pagination refresh skipped:", err.message));
+
+        return cached;
+    }
+
+    if (!silent) window.dispatchEvent(new Event('sbh-loading-start'));
+
+    try {
+        const query = new URLSearchParams(params).toString();
+        const response = await fetch(`${API_URL}?action=${action}&${query}`);
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+
+        const data = await response.json();
+        if (data.status === 'error') throw new Error(data.message);
+
+        // Normalize items if present
+        if (data.data && Array.isArray(data.data.items)) {
+            data.data.items = normalizeRows(data.data.items);
+        }
+
+        // 3. Update Cache
+        setCachedData(cacheKey, data.data);
+
+        if (!silent) window.dispatchEvent(new Event('sbh-loading-end'));
+        return data.data; // { items, total, page ... }
+
+    } catch (error) {
+        console.error("Pagination Fetch Error:", error);
+        if (!silent) window.dispatchEvent(new Event('sbh-loading-end'));
+        return { items: [], total: 0, page: 1 };
+    }
+};
+
 export const sheetsService = {
     getComplaints: (force = false, silent = false) => fetchSheetData('data', force, { silent }),
     getUsers: (force = false, silent = false) => fetchSheetData('master', force, { silent }),
     getRatings: (force = false, silent = false) => fetchSheetData('Complaint_Ratings', force, { silent }), // Updated Sheet Name
-    getUserPerformance: (force = false, silent = false) => fetchSheetData('User_Performance_Ratings', force, { silent }), // New Function
+    getUserPerformance: (username, silent = false) => fetchPaginatedData('getUserPerformance', { username }, false, silent),
+    getAllUserPerformance: (force = false, silent = false) => fetchSheetData('User_Performance_Ratings', force, { silent }),
+
+    getComplaintsPaginated: (page, limit, department, status, search, reporter, resolver, viewer, viewerRole, viewerDept, force = false, silent = true) => {
+        // ADMIN VISIBILITY FIX: If Admin/Super Admin or 'AM Sir', ignore department filter to see ALL
+        const isSuper = viewerRole === 'SUPER_ADMIN' || (viewer && viewer.toLowerCase() === 'am sir');
+        const effectiveDept = (viewerRole === 'ADMIN' || isSuper) ? '' : (department || viewerDept);
+
+        return fetchPaginatedData('getComplaintsPaginated', {
+            page, limit,
+            department: effectiveDept,
+            status: status || 'All', // Ensure default status
+            search, reporter, resolver, viewer, viewerRole, viewerDept
+        }, force, silent);
+    },
+
+    getDashboardStats: (username, department, role, force = false, silent = true) => {
+        const isSuper = role === 'SUPER_ADMIN' || (username && username.toLowerCase() === 'am sir');
+        const effectiveDept = (role === 'ADMIN' || isSuper) ? '' : department;
+        return fetchPaginatedData('getDashboardStats', { username, department: effectiveDept, role }, force, silent);
+    },
+
+    getComplaintById: (id, force = false, silent = false) =>
+        fetchPaginatedData('getComplaintById', { id }, force, silent),
+
     getTransferLogs: (force = false, silent = false) => fetchSheetData('Case_Transfer_Log', force, { silent }),
     getExtensionLogs: (force = false, silent = false) => fetchSheetData('Case_Extend_Log', force, { silent }),
 

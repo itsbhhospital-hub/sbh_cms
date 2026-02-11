@@ -1,27 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { sheetsService } from '../services/googleSheets';
 import { useAuth } from '../context/AuthContext';
-import TicketJourneyModal from '../components/TicketJourneyModal'; // New Import
+import ComplaintList from '../components/ComplaintList';
 import {
-    BarChart3, Users, Clock, CheckCircle, AlertCircle,
-    ArrowRight, Star, SlidersHorizontal, Search, Download,
-    Calendar, Building2, Phone, Shield
+    BarChart3, Users, Star, Search, ArrowRight,
+    TrendingUp, Clock, Shield, Building2, Phone, Briefcase, AlertTriangle
 } from 'lucide-react';
 
 const WorkReport = () => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const [users, setUsers] = useState([]);
-    const [complaints, setComplaints] = useState([]);
-    const [ratings, setRatings] = useState([]);
-    const [transferLogs, setTransferLogs] = useState([]); // NEW
-    const [extensionLogs, setExtensionLogs] = useState([]); // NEW
+    const [performanceData, setPerformanceData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-
-    // Ticket Journey State
-    const [journeyTicket, setJourneyTicket] = useState(null);
-    const [showJourney, setShowJourney] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -29,18 +23,12 @@ const WorkReport = () => {
 
     const loadData = async () => {
         try {
-            const [usersData, complaintsData, ratingsData, transferData, extensionData] = await Promise.all([
+            const [usersData, perfData] = await Promise.all([
                 sheetsService.getUsers(),
-                sheetsService.getComplaints(true),
-                sheetsService.getRatings(true),
-                sheetsService.getTransferLogs(), // Fetch these for journey
-                sheetsService.getExtensionLogs() // Fetch these for journey
+                sheetsService.getAllUserPerformance(true)
             ]);
             setUsers(usersData);
-            setComplaints(complaintsData);
-            setRatings(ratingsData);
-            setTransferLogs(transferData);
-            setExtensionLogs(extensionData);
+            setPerformanceData(perfData);
         } catch (err) {
             console.error("Failed to load report data", err);
         } finally {
@@ -48,88 +36,66 @@ const WorkReport = () => {
         }
     };
 
-    // Calculate Metrics for All Users
+    // Merge User Data with Performance Metrics
     const userMetrics = useMemo(() => {
-        if (!Array.isArray(users)) return []; // Safety Check
+        if (!Array.isArray(users)) return [];
 
         return users.map(u => {
-            const username = String(u.Username || '');
-
-            // Tickets Resolved by this user
-            const safeComplaints = Array.isArray(complaints) ? complaints : [];
-            const resolvedTickets = safeComplaints.filter(c =>
-                String(c.ResolvedBy || '').toLowerCase() === username.toLowerCase()
-            );
-
-            // Tickets Reported by this user
-            const reportedTickets = safeComplaints.filter(c =>
-                String(c.ReportedBy || '').toLowerCase() === username.toLowerCase()
-            );
-
-            // Calculate Rating (Using 'ratings' sheet log for comprehensive history)
-            const safeRatings = Array.isArray(ratings) ? ratings : [];
-            const userRatings = safeRatings.filter(r => {
-                const resolver = String(r.ResolvedBy || '').toLowerCase();
-                return resolver === username.toLowerCase() && Number(r.Rating) > 0;
-            });
-
-            let avgRating = '0.0';
-            if (userRatings.length > 0) {
-                const total = userRatings.reduce((acc, r) => acc + (Number(r.Rating) || 0), 0);
-                avgRating = (total / userRatings.length).toFixed(1);
-            } else {
-                // FALLBACK: Use current active complaints if 'ratings' sheet is empty/missing
-                const currentRated = resolvedTickets.filter(c => Number(c.Rating) > 0);
-                if (currentRated.length > 0) {
-                    const total = currentRated.reduce((acc, c) => acc + (Number(c.Rating) || 0), 0);
-                    avgRating = (total / currentRated.length).toFixed(1);
-                }
-            }
-
-            // Delayed (Simple logic: Resolved Date > Target Date if Target exists)
-            const delayedCount = resolvedTickets.filter(c => {
-                const target = c.TargetDate;
-                const resolved = c.ResolvedDate;
-                if (target && resolved) {
-                    const d1 = new Date(resolved);
-                    const d2 = new Date(target);
-                    return !isNaN(d1) && !isNaN(d2) && d1 > d2;
-                }
-                return false;
-            }).length;
+            const username = String(u.Username || '').trim();
+            // Find stats in performance data (case-insensitive match)
+            const stats = performanceData.find(p => String(p.Username || '').toLowerCase() === username.toLowerCase()) || {};
 
             return {
                 ...u,
                 stats: {
-                    resolved: resolvedTickets.length,
-                    reported: reportedTickets.length,
-                    active: reportedTickets.filter(c => c.Status === 'Open').length,
-                    avgRating: isNaN(avgRating) ? '0.0' : avgRating,
-                    ratingCount: userRatings.length > 0 ? userRatings.length : 0,
-                    delayed: delayedCount,
-                    history: [...resolvedTickets, ...reportedTickets]
+                    resolved: parseInt(stats.SolvedCount || 0),
+                    avgRating: parseFloat(stats.AvgRating || '0.0').toFixed(1),
+                    ratingCount: parseInt(stats.RatingCount || 0),
+                    avgSpeed: parseFloat(stats.AvgSpeedHours || 0),
+                    efficiency: parseFloat(stats.EfficiencyScore || 0),
+                    delayed: parseInt(stats.DelayCount || 0),
+                    total: parseInt(stats.TotalCases || 0),
+                    breakdown: {
+                        5: parseInt(stats.R5 || 0),
+                        4: parseInt(stats.R4 || 0),
+                        3: parseInt(stats.R3 || 0),
+                        2: parseInt(stats.R2 || 0),
+                        1: parseInt(stats.R1 || 0)
+                    }
                 }
             };
         });
-    }, [users, complaints, ratings]);
+    }, [users, performanceData]);
 
-    const filteredUsers = userMetrics.filter(u => {
-        const role = (user.Role || '').toUpperCase().trim();
-        const uRole = (u.Role || '').toUpperCase().trim();
-        const username = (u.Username || '').toLowerCase().trim();
+    const filteredUsers = useMemo(() => {
+        const list = userMetrics.filter(u => {
+            const username = (u.Username || '').toLowerCase().trim();
+            const search = String(searchTerm).toLowerCase();
+            return username.includes(search) ||
+                String(u.Department || '').toLowerCase().includes(search);
+        });
 
-        // SUPER_ADMIN sees EVERYTHING
-        // Others see based on existing logic (currently all users are visible to admins)
-        if (role !== 'SUPER_ADMIN') {
-            if (uRole === 'SUPER_ADMIN' || username === 'superadmin' || username === 'amsir') return false;
-        }
+        // Sort by efficiency once here to ensure stable ranking and display
+        return list.sort((a, b) => (b.stats?.efficiency || 0) - (a.stats?.efficiency || 0));
+    }, [userMetrics, searchTerm]);
 
-        const search = String(searchTerm).toLowerCase();
-        return username.includes(search) ||
-            String(u.Department || '').toLowerCase().includes(search);
-    });
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const pageSize = 12; // Grid 3x4
 
-    if (loading) return null; // Spinner removed as requested
+    // Reset page on search
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm]);
+
+    const paginatedUsers = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredUsers.slice(start, start + pageSize);
+    }, [filteredUsers, page]);
+
+    const totalPages = Math.ceil(filteredUsers.length / pageSize);
+
+    if (loading) return null;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 max-w-7xl mx-auto px-4 py-6 md:py-8">
@@ -140,8 +106,8 @@ const WorkReport = () => {
                     <div className="p-8 bg-orange-950 text-white flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-4 mb-6">
-                                <button onClick={() => window.location.href = '/'} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-emerald-600 hover:border-emerald-500">
-                                    <ArrowRight className="rotate-180" size={16} /> Back to Dashboard
+                                <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm transition-colors bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-emerald-600 hover:border-emerald-500">
+                                    <ArrowRight className="rotate-180" size={16} /> Dashboard
                                 </button>
                                 {selectedUser && (
                                     <button onClick={() => setSelectedUser(null)} className="flex items-center gap-2 text-slate-400 hover:text-white font-bold text-sm transition-colors">
@@ -158,10 +124,9 @@ const WorkReport = () => {
                         </div>
                         <div className="text-right">
                             <div className="bg-orange-900/50 p-4 rounded-2xl border border-white/10 shadow-inner">
-                                <p className="text-label text-orange-400 uppercase mb-1 tracking-widest">Efficiency</p>
+                                <p className="text-label text-orange-400 uppercase mb-1 tracking-widest">Global Rank</p>
                                 <div className="text-card-value font-black text-amber-400 flex items-center justify-end gap-2">
-                                    {selectedUser.stats.avgRating || '-'} <Star fill="currentColor" size={32} />
-                                    <span className="text-xs text-orange-300 ml-1">({selectedUser.stats.ratingCount} reviews)</span>
+                                    #{filteredUsers.findIndex(x => x.Username === selectedUser.Username) + 1}
                                 </div>
                             </div>
                         </div>
@@ -170,89 +135,84 @@ const WorkReport = () => {
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-8 -mt-8">
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <p className="text-label text-slate-400 uppercase">Closed</p>
+                            <p className="text-label text-slate-400 uppercase">Solved Cases</p>
                             <p className="text-card-value font-black text-orange-600 mt-1">{selectedUser.stats.resolved}</p>
                         </div>
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <p className="text-label text-slate-400 uppercase">Reported</p>
-                            <p className="text-card-value font-black text-blue-600 mt-1">{selectedUser.stats.reported}</p>
+                            <p className="text-label text-slate-400 uppercase">Avg Rating</p>
+                            <p className="text-card-value font-black text-amber-500 mt-1 flex items-center gap-1">
+                                {selectedUser.stats.avgRating} <Star size={18} fill="currentColor" />
+                            </p>
                         </div>
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <p className="text-label text-slate-400 uppercase">Pending</p>
-                            <p className="text-card-value font-black text-amber-500 mt-1">{selectedUser.stats.active}</p>
+                            <p className="text-label text-slate-400 uppercase">Avg Speed (Hr)</p>
+                            <p className="text-card-value font-black text-blue-600 mt-1">{Number(selectedUser.stats.avgSpeed).toFixed(1)}</p>
                         </div>
                         <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-                            <p className="text-label text-slate-400 uppercase">Delayed</p>
-                            <p className="text-card-value font-black text-rose-500 mt-1">{selectedUser.stats.delayed}</p>
+                            <p className="text-label text-slate-400 uppercase">Efficiency Score</p>
+                            <p className="text-card-value font-black text-emerald-600 mt-1">{Number(selectedUser.stats.efficiency).toFixed(0)}</p>
                         </div>
                     </div>
 
-                    {/* Detailed History Table */}
-                    <div className="p-8 pt-0">
-                        <h3 className="font-bold text-section-title text-slate-800 mb-6 flex items-center gap-2">
-                            <Clock size={24} className="text-slate-400" /> Detailed Activity Log
-                        </h3>
-                        <div className="overflow-x-auto rounded-xl border border-slate-200">
-                            <table className="w-full text-left table-compact">
-                                <thead className="bg-[#f8fafc] text-table-header text-slate-500 font-bold uppercase tracking-widest text-[11px]">
-                                    <tr>
-                                        <th className="p-4">Ticket ID</th>
-                                        <th className="p-4">Date</th>
-                                        <th className="p-4">Type</th>
-                                        <th className="p-4">Description</th>
-                                        <th className="p-4">Status</th>
-                                        <th className="p-4 text-center">Rating</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {selectedUser.stats.history.length === 0 ? (
-                                        <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">No activity found.</td></tr>
-                                    ) : (
-                                        selectedUser.stats.history.map((c, i) => {
-                                            const isResolver = String(c.ResolvedBy || '').toLowerCase() === String(selectedUser.Username || '').toLowerCase();
-                                            return (
-
-                                                <tr
-                                                    key={i}
-                                                    onClick={() => {
-                                                        setJourneyTicket(c);
-                                                        setShowJourney(true);
-                                                    }}
-                                                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
-                                                >
-                                                    <td className="p-4 font-bold text-slate-600 group-hover:text-orange-600 underline decoration-dotted decoration-slate-300 group-hover:decoration-orange-400">#{c.ID}</td>
-                                                    <td className="p-4 text-slate-500 font-medium">
-                                                        {new Date(c.Date).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${isResolver ? 'bg-orange-700 text-white shadow-sm' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                                            {isResolver ? 'Resolver' : 'Reporter'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4 font-medium text-slate-800 max-w-xs truncate">{c.Description}</td>
-                                                    <td className="p-4">
-                                                        <span className={`font-bold ${c.Status === 'Closed' || c.Status === 'Solved' ? 'text-orange-600' :
-                                                            c.Status === 'Open' ? 'text-amber-600' : 'text-slate-400'
-                                                            }`}>{c.Status}</span>
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        {c.Rating ? (
-                                                            <div className="flex items-center justify-center gap-0.5">
-                                                                {[...Array(5)].map((_, i) => (
-                                                                    <Star key={i} size={12} className={i < Number(c.Rating) ? "text-amber-500 fill-amber-500" : "text-amber-200"} />
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-slate-300 font-bold">-</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                    {/* Performance Deep Dive */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-8 pt-0">
+                        {/* Rating Breakdown */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 col-span-1">
+                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <Star size={16} className="text-amber-400" /> Rating Distribution
+                            </h4>
+                            <div className="space-y-3">
+                                {[5, 4, 3, 2, 1].map(star => {
+                                    const count = selectedUser.stats.breakdown[star];
+                                    const total = selectedUser.stats.ratingCount || 1;
+                                    const pct = (count / total) * 100;
+                                    return (
+                                        <div key={star} className="flex items-center gap-3 text-xs font-bold">
+                                            <span className="w-8 text-right flex items-center justify-end gap-1 text-slate-500">{star} <Star size={10} fill="currentColor" className="text-slate-300" /></span>
+                                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-amber-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                                            </div>
+                                            <span className="w-6 text-slate-400">{count}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
+
+                        {/* Efficiency Factors */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            {/* Factor 1: Delay Impact */}
+                            <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h5 className="text-sm font-bold text-rose-800 uppercase">Delayed Cases</h5>
+                                    <AlertTriangle size={18} className="text-rose-500" />
+                                </div>
+                                <p className="text-3xl font-black text-rose-600 mb-1">{selectedUser.stats.delayed}</p>
+                                <p className="text-xs text-rose-400 font-medium">Cases exceeding target time. Negatively impacts efficiency score.</p>
+                            </div>
+
+                            {/* Factor 2: Speed Score */}
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h5 className="text-sm font-bold text-blue-800 uppercase">Speed Score</h5>
+                                    <Clock size={18} className="text-blue-500" />
+                                </div>
+                                <p className="text-3xl font-black text-blue-600 mb-1">{Math.round((selectedUser.stats.efficiency - ((Number(selectedUser.stats.avgRating) / 5) * 50)) * 2) / 2 || 0}</p>
+                                <p className="text-xs text-blue-400 font-medium">Points earned from fast resolution (Target: 24h). 30% Weightage.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Detailed History Table via ComplaintList */}
+                    <div className="p-8 pt-0 min-h-[500px]">
+                        <h3 className="font-bold text-section-title text-slate-800 mb-6 flex items-center gap-2">
+                            <Briefcase size={24} className="text-slate-400" /> Resolution History
+                        </h3>
+                        {/* Reuse ComplaintList with Custom Resolver Filter */}
+                        <ComplaintList
+                            customResolver={selectedUser.Username}
+                            initialFilter="Solved" // Show all tickets they specifically solved
+                        />
                     </div>
                 </div>
             ) : (
@@ -275,14 +235,13 @@ const WorkReport = () => {
                                 />
                             </div>
                         </div>
-                        {/* Background Decor */}
                         <BarChart3 className="absolute right-0 bottom-0 text-white/5 w-64 h-64 -mr-10 -mb-10 rotate-12" />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredUsers.map((u, i) => (
+                        {paginatedUsers.map((u, i) => (
                             <div
-                                key={i}
+                                key={u.Username || i}
                                 onClick={() => setSelectedUser(u)}
                                 className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-orange-300 hover:-translate-y-1 transition-all cursor-pointer group"
                             >
@@ -291,8 +250,8 @@ const WorkReport = () => {
                                         <Users size={24} />
                                     </div>
                                     <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
-                                        <Star size={14} className="text-amber-400 fill-amber-400" />
-                                        <span className="text-xs font-black text-amber-700">{u.stats.avgRating || '0.0'}</span>
+                                        <TrendingUp size={14} className="text-amber-400" />
+                                        <span className="text-xs font-black text-amber-700">#{(page - 1) * pageSize + i + 1}</span>
                                     </div>
                                 </div>
                                 <h3 className="font-black text-lg text-slate-800 group-hover:text-orange-700 transition-colors mb-1 tracking-tight">{u.Username}</h3>
@@ -300,32 +259,46 @@ const WorkReport = () => {
 
                                 <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
                                     <div className="text-center">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Closed</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Solved</p>
                                         <p className="font-black text-slate-800">{u.stats.resolved}</p>
                                     </div>
                                     <div className="text-center border-l border-slate-100">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Pending</p>
-                                        <p className="font-black text-amber-500">{u.stats.active}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Rating</p>
+                                        <p className="font-black text-amber-500">{u.stats.avgRating}</p>
                                     </div>
                                     <div className="text-center border-l border-slate-100">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Delayed</p>
-                                        <p className="font-black text-rose-500">{u.stats.delayed}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Score</p>
+                                        <p className="font-black text-emerald-600">{Number(u.stats.efficiency).toFixed(0)}</p>
                                     </div>
                                 </div>
                             </div>
                         ))}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex justify-between items-center mt-8 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors border border-transparent hover:border-slate-200"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                                Page {page} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-slate-900 transition-colors shadow-lg shadow-slate-200"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
                 </>
             )}
-            {/* TICKET JOURNEY MODAL */}
-            <TicketJourneyModal
-                isOpen={showJourney}
-                onClose={() => setShowJourney(false)}
-                ticket={journeyTicket}
-                transferLogs={transferLogs}
-                extensionLogs={extensionLogs}
-                ratingsLog={ratings}
-            />
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Link, useLocation, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLayout } from '../context/LayoutContext';
@@ -6,17 +6,11 @@ import { useLoading } from '../context/LoadingContext';
 import {
     LayoutDashboard, Plus, ClipboardList, CheckCircle,
     Clock, LogOut, ChevronLeft, ChevronRight, Menu,
-    Users, BarChart3, ShieldCheck, Key, FileText, Share2, Hospital, X
+    Users, BarChart3, ShieldCheck, Key, FileText, Share2, Hospital, X, Zap
 } from 'lucide-react';
 
-
-const Sidebar = () => {
-    const { user, logout } = useAuth();
-    const location = useLocation();
-    const { mobileOpen, setMobileOpen, collapsed, setCollapsed } = useLayout();
-    const { showLoader } = useLoading();
+const SessionTimer = memo(({ collapsed, mobileOpen, isHovered }) => {
     const [timeLeft, setTimeLeft] = useState('');
-    const [isHovered, setIsHovered] = useState(false);
 
     useEffect(() => {
         const updateTimer = () => {
@@ -36,6 +30,40 @@ const Sidebar = () => {
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
     }, []);
+
+    if (collapsed && !mobileOpen && !isHovered) {
+        return (
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white border border-white/10 shadow-sm">
+                    <Clock size={20} />
+                </div>
+                {/* Logout button handled by parent */}
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-white/20 border border-white/10 p-3 rounded-2xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/30 flex items-center justify-center text-white shadow-sm">
+                    <Clock className="animate-pulse" size={16} />
+                </div>
+                <div>
+                    <p className="text-[10px] font-bold text-indigo-100 tracking-wide leading-none mb-1 opacity-80 uppercase">Session Left</p>
+                    <p className="text-sm font-mono font-black text-white leading-none tracking-wider">{timeLeft || '--:--'}</p>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+
+const Sidebar = () => {
+    const { user, logout } = useAuth();
+    const location = useLocation();
+    const { mobileOpen, setMobileOpen, collapsed, setCollapsed } = useLayout();
+    const { showLoader } = useLoading();
+    const [isHovered, setIsHovered] = useState(false);
 
     useEffect(() => {
         setMobileOpen(false);
@@ -105,8 +133,8 @@ const Sidebar = () => {
                 {/* Header */}
                 <div className="h-16 flex items-center justify-center border-b border-white/10 mb-2 relative shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg p-1">
-                            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                        <div className="w-12 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg p-1">
+                            <img src="/sbh_wide.jpg" alt="Logo" className="w-full h-full object-contain" />
                         </div>
                         {(!collapsed || mobileOpen || isHovered) && (
                             <span className="font-black text-xl text-white tracking-tight drop-shadow-md">
@@ -129,6 +157,10 @@ const Sidebar = () => {
                     <NavItem to="/extended-cases" icon={Clock} label="Extended Cases" />
                     <NavItem to="/solved-by-me" icon={CheckCircle} label="Solved By Me" />
 
+                    {(user.Username === 'AM Sir' || user.Role === 'SUPER_ADMIN') && (
+                        <NavItem to="/ai-command-center" icon={Zap} label="AI Command Center" />
+                    )}
+
                     {(user.Role === 'admin' || user.Role === 'SUPER_ADMIN') && (
                         <>
                             <div className="mt-6 mb-2 px-4 text-[11px] font-bold text-indigo-100 uppercase tracking-wider leading-none opacity-90">
@@ -145,17 +177,7 @@ const Sidebar = () => {
                 <div className="p-2 flex flex-col justify-end shrink-0">
                     {(!collapsed || mobileOpen || isHovered) ? (
                         <div className="flex flex-col gap-3">
-                            <div className="bg-white/20 border border-white/10 p-3 rounded-2xl flex items-center justify-between shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-white/30 flex items-center justify-center text-white shadow-sm">
-                                        <Clock className="animate-pulse" size={16} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-indigo-100 tracking-wide leading-none mb-1 opacity-80 uppercase">Session Left</p>
-                                        <p className="text-sm font-mono font-black text-white leading-none tracking-wider">{timeLeft || '--:--'}</p>
-                                    </div>
-                                </div>
-                            </div>
+                            <SessionTimer collapsed={collapsed} mobileOpen={mobileOpen} isHovered={isHovered} />
 
                             <button
                                 onClick={logout}
@@ -166,10 +188,8 @@ const Sidebar = () => {
                             </button>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white border border-white/10 shadow-sm">
-                                <Clock size={20} />
-                            </div>
+                        <>
+                            <SessionTimer collapsed={collapsed} mobileOpen={mobileOpen} isHovered={isHovered} />
                             <button
                                 onClick={logout}
                                 className="p-3.5 bg-white text-[#65a30d] rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-lg active:scale-90"
@@ -177,7 +197,7 @@ const Sidebar = () => {
                             >
                                 <LogOut size={20} strokeWidth={2.5} />
                             </button>
-                        </div>
+                        </>
                     )}
                 </div>
             </aside>
@@ -185,4 +205,4 @@ const Sidebar = () => {
     );
 };
 
-export default Sidebar;
+export default memo(Sidebar);

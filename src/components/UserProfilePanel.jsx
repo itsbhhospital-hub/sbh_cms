@@ -33,6 +33,10 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
     const [pendingFile, setPendingFile] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
 
+    // Performance Metrics State
+    const [performance, setPerformance] = useState(null);
+    const [loadingPerf, setLoadingPerf] = useState(false);
+
     useEffect(() => {
         if (targetUser) {
             setFormData({
@@ -47,9 +51,16 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
                 ProfilePhoto: targetUser.ProfilePhoto || null,
                 OldUsername: targetUser.Username // Track original
             });
-            // Reset pending file on new user view
             setPendingFile(null);
             setTempImage(null);
+
+            // Fetch Performance Data
+            setLoadingPerf(true);
+            sheetsService.getUserPerformance(targetUser.Username)
+                .then(data => {
+                    setPerformance(data || null);
+                }) // Silent catch
+                .finally(() => setLoadingPerf(false));
         }
     }, [targetUser]);
 
@@ -204,12 +215,12 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
                     )}
 
                     {/* Tabs */}
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        {['personal', 'system', 'security'].map(tab => (
+                    <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto">
+                        {['performance', 'personal', 'system', 'security'].map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === tab ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                                className={`flex-1 py-2 px-2 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
                                     }`}
                             >
                                 {tab}
@@ -219,6 +230,66 @@ const UserProfilePanel = ({ user: targetUser, onClose, onUpdate, onDelete }) => 
 
                     {/* Panels */}
                     <div className="space-y-6">
+                        {activeTab === 'performance' && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                                {loadingPerf ? (
+                                    <div className="p-8 text-center text-slate-400 font-bold animate-pulse">Loading Analytics...</div>
+                                ) : (
+                                    <>
+                                        {/* Impact Card */}
+                                        <div className="p-5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl shadow-lg text-white relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-4 opacity-10"><Shield size={64} /></div>
+                                            <h4 className="text-xs font-bold text-indigo-100 uppercase tracking-widest mb-1">Your Impact</h4>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-4xl font-black">{performance?.solved || 0}</span>
+                                                <span className="text-sm font-semibold opacity-80">Tickets Solved</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {/* Quality Score */}
+                                            <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500"><CheckCircle size={16} /></div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Quality Score</span>
+                                                </div>
+                                                <p className="text-2xl font-black text-slate-800 flex items-center gap-1">
+                                                    {performance?.avgRating || '0.0'} <span className="text-xs text-amber-500">★</span>
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-1">{performance?.totalRatings || 0} Ratings</p>
+                                            </div>
+
+                                            {/* Avg Speed */}
+                                            <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500"><Clock size={16} /></div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Avg Speed</span>
+                                                </div>
+                                                <p className="text-xl font-black text-slate-800">
+                                                    {performance?.avgSpeedHours ? (performance.avgSpeedHours < 24 ? `${performance.avgSpeedHours}h` : `${(performance.avgSpeedHours / 24).toFixed(1)}d`) : 'N/A'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-1">Resolution Time</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Efficiency Rank */}
+                                        <div className="p-5 bg-slate-900 rounded-2xl shadow-lg relative overflow-hidden">
+                                            <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-white/5 to-transparent"></div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Efficiency Rank</h4>
+                                            <div className="flex items-center justify-between relative z-10">
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-3xl font-black text-white">#{performance?.rank || '-'}</span>
+                                                    <span className="text-xs font-bold text-slate-400">of {performance?.totalStaff || '-'} Staff</span>
+                                                </div>
+                                                <div className="p-2 bg-white/10 rounded-full text-white">
+                                                    <Globe size={20} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </motion.div>
+                        )}
                         {activeTab === 'personal' && (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                                 <InputField

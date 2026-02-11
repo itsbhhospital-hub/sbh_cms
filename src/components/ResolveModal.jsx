@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { CheckCircle, X } from 'lucide-react';
+import { CheckCircle, X, Zap } from 'lucide-react';
+import { useIntelligence } from '../context/IntelligenceContext';
 
-const ResolveModal = ({ isOpen, onClose, onConfirm, isSubmitting, title = "Mark as Resolved" }) => {
+const ResolveModal = ({ isOpen, onClose, onConfirm, isSubmitting, title = "Mark as Resolved", ticket }) => {
     const [remark, setRemark] = useState('');
+    const { getResolverRecommendation } = useIntelligence();
+    const recommendedStaff = getResolverRecommendation(ticket?.Department);
 
     if (!isOpen) return null;
 
@@ -22,7 +24,14 @@ const ResolveModal = ({ isOpen, onClose, onConfirm, isSubmitting, title = "Mark 
             </div>
 
             <div className="mb-4">
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Resolution Remarks</label>
+                <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Resolution Remarks</label>
+                    {recommendedStaff && (
+                        <span className="flex items-center gap-1 text-[10px] font-black text-rose-500 uppercase">
+                            < Zap size={10} fill="currentColor" /> AI Best Resolver: {recommendedStaff}
+                        </span>
+                    )}
+                </div>
                 <textarea
                     className="w-full p-4 border border-slate-200 rounded-xl text-sm font-medium h-32 resize-none outline-none focus:ring-2 focus:ring-slate-100 focus:border-slate-300 transition-all placeholder:text-slate-400 bg-slate-50 focus:bg-white"
                     placeholder="Describe how the issue was resolved..."

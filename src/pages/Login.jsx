@@ -13,15 +13,14 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showTerminated, setShowTerminated] = useState(false);
     const { login } = useAuth();
-    const { showLoader } = useLoading();
+    const { showLoader, hideLoader } = useLoading();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        setIsLoading(true);
-        // showLoader(); // REMOVED: Instant Feedback requested
+        showLoader(true); // Explicitly show loader during login
         try {
             await login(formData.username, formData.password);
             navigate('/');
@@ -32,6 +31,7 @@ const Login = () => {
                 setError(err.message || 'Failed to login');
             }
             setIsLoading(false);
+            hideLoader(); // Ensure it hides on error
         }
     };
 
@@ -57,8 +57,8 @@ const Login = () => {
                     {/* Premium Header Layout */}
                     <div className="p-10 pb-2 flex flex-col items-center">
                         <div className="flex items-center gap-5 mb-8 w-full justify-center">
-                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center border-2 border-indigo-50 shadow-sm shrink-0">
-                                <img src={logo} alt="Logo" className="w-[80%] h-[80%] object-contain" />
+                            <div className="w-20 h-14 bg-white rounded-xl flex items-center justify-center border-2 border-indigo-50 shadow-sm shrink-0">
+                                <img src="/sbh_wide.jpg" alt="Logo" className="w-[90%] h-[90%] object-contain" />
                             </div>
                             <div className="text-left font-ui">
                                 <h2 className="text-3xl font-black text-[#0f172a] tracking-tight leading-none mb-1">SBH CMS</h2>

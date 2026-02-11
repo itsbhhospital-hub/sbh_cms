@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
+import { AnalyticsProvider } from './context/AnalyticsContext';
+import { IntelligenceProvider } from './context/IntelligenceContext';
 import { LayoutProvider } from './context/LayoutContext';
 import GlobalLoader from './components/GlobalLoader';
 import Sidebar from './components/Sidebar';
@@ -10,14 +12,17 @@ import Footer from './components/Footer';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
-import UserManagement from './pages/UserManagement';
-import NewComplaint from './pages/NewComplaint';
-import MyComplaints from './pages/MyComplaints';
-import WorkReport from './pages/WorkReport';
-import SolvedByMe from './pages/SolvedByMe';
-import CaseTransfer from './pages/CaseTransfer';
-import ExtendedCases from './pages/ExtendedCases';
-import ChangePassword from './pages/ChangePassword';
+
+// Lazy Load Heavy Pages
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const NewComplaint = lazy(() => import('./pages/NewComplaint'));
+const MyComplaints = lazy(() => import('./pages/MyComplaints'));
+const WorkReport = lazy(() => import('./pages/WorkReport'));
+const SolvedByMe = lazy(() => import('./pages/SolvedByMe'));
+const CaseTransfer = lazy(() => import('./pages/CaseTransfer'));
+const ExtendedCases = lazy(() => import('./pages/ExtendedCases'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const AICommandCenter = lazy(() => import('./pages/AICommandCenter'));
 
 const ProtectedRoute = ({ children }) => {
   const auth = useAuth();
@@ -42,7 +47,9 @@ const Layout = ({ children }) => {
         <main className="flex-1 ml-0 transition-all flex flex-col min-h-screen w-full relative">
           <Navbar />
           <div className="flex-grow p-4 md:p-8 w-full max-w-full overflow-x-hidden pb-20 md:pb-24">
-            {children}
+            <Suspense fallback={<GlobalLoader />}>
+              {children}
+            </Suspense>
           </div>
           <Footer />
         </main>
@@ -56,77 +63,88 @@ function App() {
     <Router>
       <LoadingProvider>
         <AuthProvider>
-          <GlobalLoader />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/new-complaint" element={
-              <ProtectedRoute>
-                <Layout>
-                  <NewComplaint />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/my-complaints" element={
-              <ProtectedRoute>
-                <Layout>
-                  <MyComplaints />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/solved-by-me" element={
-              <ProtectedRoute>
-                <Layout>
-                  <SolvedByMe />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/work-report" element={
-              <ProtectedRoute>
-                <Layout>
-                  <WorkReport />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/user-management" element={
-              <ProtectedRoute>
-                <Layout>
-                  <UserManagement />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/case-transfer" element={
-              <ProtectedRoute>
-                <Layout>
-                  <CaseTransfer />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/extended-cases" element={
-              <ProtectedRoute>
-                <Layout>
-                  <ExtendedCases />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/change-password" element={
-              <ProtectedRoute>
-                <Layout>
-                  <ChangePassword />
-                </Layout>
-              </ProtectedRoute>
-            } />
-          </Routes>
+          <AnalyticsProvider>
+            <IntelligenceProvider>
+              <GlobalLoader />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/new-complaint" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <NewComplaint />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/my-complaints" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <MyComplaints />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/solved-by-me" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <SolvedByMe />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/work-report" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <WorkReport />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/user-management" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <UserManagement />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/case-transfer" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <CaseTransfer />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/extended-cases" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ExtendedCases />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/change-password" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ChangePassword />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/ai-command-center" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <AICommandCenter />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </IntelligenceProvider>
+          </AnalyticsProvider>
         </AuthProvider>
-      </LoadingProvider >
-    </Router >
+      </LoadingProvider>
+    </Router>
   );
 }
 
